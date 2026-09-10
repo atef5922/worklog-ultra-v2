@@ -1,0 +1,282 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  employee
+  hr
+  manager
+  admin
+}
+
+enum TaskStatus {
+  done
+  in_progress
+  pending
+}
+
+enum ReportEditRequestStatus {
+  pending
+  approved
+  rejected
+}
+
+enum AttendanceStatus {
+  present
+  late
+  half_day
+  absent
+  remote
+}
+
+enum ReminderKind {
+  attendance_morning
+  plan_morning
+  report_evening
+}
+
+model User {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email              String               @unique
+  passwordHash       String               @map("password_hash")
+  role               UserRole
+  name               String
+  designation        String?
+  departmentId       String?              @map("department_id") @db.Uuid
+  avatarUrl          String?              @map("avatar_url")
+  location           String?
+  phone              String?
+  monthlySalary      Decimal?             @map("monthly_salary") @db.Decimal(12, 2)
+  expectedDailyHours Decimal?             @default(8) @map("expected_daily_hours") @db.Decimal(4, 2)
+  isActive           Boolean              @default(true) @map("is_active")
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  department         Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  taskAssignments    DailyTask[]          @relation("TaskAssigner")
+  taskOwner          DailyTask[]          @relation("TaskOwner")
+  notices            HrNotice[]
+  noticeDismissals   HrNoticeDismissal[]
+  reportEditReviews  ReportEditRequest[]   @relation("ReportEditReviewer")
+  reportEditRequests ReportEditRequest[]   @relation("ReportEditRequester")
+  receivedMessages   WorkspaceMessage[]    @relation("WorkspaceMessageRecipient")
+  reminderDispatches ReminderDispatch[]
+  resetTokens        PasswordResetToken[]
+  sentMessages       WorkspaceMessage[]    @relation("WorkspaceMessageSender")
+  sessions           UserSession[]
+  attendanceRecords  AttendanceRecord[]
+
+  @@map("users")
+}
+
+model Department {
+  id        String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String                   @unique
+  createdAt DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  users     User[]
+  tasks     DailyTask[]
+  notices   HrNotice[]
+  signups   SignupVerificationCode[]
+
+  @@map("departments")
+}
+
+model SignupVerificationCode {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String
+  role         UserRole
+  name         String
+  departmentId String?     @map("department_id") @db.Uuid
+  designation  String?
+  passwordHash String      @map("password_hash")
+  codeHash     String      @map("code_hash")
+  attempts     Int         @default(0)
+  expiresAt    DateTime    @map("expires_at") @db.Timestamptz(6)
+  verifiedAt   DateTime?   @map("verified_at") @db.Timestamptz(6)
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([email, role, createdAt])
+  @@map("signup_verification_codes")
+}
+
+model DailyTask {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String            @map("user_id") @db.Uuid
+  departmentId    String            @map("department_id") @db.Uuid
+  planDate        DateTime          @map("plan_date") @db.Date
+  taskTitle       String            @map("task_title")
+  taskDescription String?           @map("task_description")
+  priority        String            @default("normal")
+  assignedBy      String?           @map("assigned_by") @db.Uuid
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  department      Department        @relation(fields: [departmentId], references: [id])
+  assigner        User?             @relation("TaskAssigner", fields: [assignedBy], references: [id])
+  user            User              @relation("TaskOwner", fields: [userId], references: [id], onDelete: Cascade)
+  editRequests    ReportEditRequest[]
+  updates         DailyTaskUpdate[]
+
+  @@index([userId, planDate])
+  @@map("daily_tasks")
+}
+
+model DailyTaskUpdate {
+  id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dailyTaskId       String     @map("daily_task_id") @db.Uuid
+  reportDate        DateTime   @map("report_date") @db.Date
+  status            TaskStatus
+  note              String?
+  completionPercent Int        @default(0) @map("completion_percent")
+  trackedMinutes    Int        @default(0) @map("tracked_minutes")
+  actualStart       DateTime?  @map("actual_start") @db.Timestamptz(6)
+  actualEnd         DateTime?  @map("actual_end") @db.Timestamptz(6)
+  difficultyLevel   String?    @map("difficulty_level")
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  dailyTask         DailyTask  @relation(fields: [dailyTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([dailyTaskId, reportDate])
+  @@map("daily_task_updates")
+}
+
+model ReportEditRequest {
+  id            String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dailyTaskId   String                  @map("daily_task_id") @db.Uuid
+  requestedById String                  @map("requested_by_id") @db.Uuid
+  reviewerId    String?                 @map("reviewer_id") @db.Uuid
+  reason        String
+  status        ReportEditRequestStatus @default(pending)
+  reviewNote    String?                 @map("review_note")
+  reviewedAt    DateTime?               @map("reviewed_at") @db.Timestamptz(6)
+  createdAt     DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  dailyTask     DailyTask               @relation(fields: [dailyTaskId], references: [id], onDelete: Cascade)
+  requestedBy   User                    @relation("ReportEditRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  reviewer      User?                   @relation("ReportEditReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([dailyTaskId, createdAt])
+  @@index([requestedById, createdAt])
+  @@index([status, createdAt])
+  @@map("report_edit_requests")
+}
+
+model HrNotice {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title              String
+  body               String
+  authorId           String?              @map("author_id") @db.Uuid
+  targetDepartmentId String?              @map("target_department_id") @db.Uuid
+  isActive           Boolean              @default(true) @map("is_active")
+  publishedAt        DateTime?            @map("published_at") @db.Timestamptz(6)
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  author             User?                @relation(fields: [authorId], references: [id])
+  targetDepartment   Department?          @relation(fields: [targetDepartmentId], references: [id])
+  dismissals         HrNoticeDismissal[]
+
+  @@map("hr_notices")
+}
+
+model HrNoticeDismissal {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  noticeId  String   @map("notice_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  notice    HrNotice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([noticeId, userId])
+  @@map("hr_notice_dismissals")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email     String
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  userId    String?   @map("user_id") @db.Uuid
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email, createdAt])
+  @@map("password_reset_tokens")
+}
+
+model UserSession {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  sessionId String    @unique @map("session_id")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("user_sessions")
+}
+
+model AttendanceRecord {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  attendanceDate DateTime         @map("attendance_date") @db.Date
+  status         AttendanceStatus @default(present)
+  checkInAt      DateTime?        @map("check_in_at") @db.Timestamptz(6)
+  checkOutAt     DateTime?        @map("check_out_at") @db.Timestamptz(6)
+  breakMinutes   Int              @default(0) @map("break_minutes")
+  workingMinutes Int              @default(0) @map("working_minutes")
+  note           String?
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, attendanceDate])
+  @@index([attendanceDate, status])
+  @@map("attendance_records")
+}
+
+model WorkspaceMessage {
+  id          String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  senderId    String                     @map("sender_id") @db.Uuid
+  recipientId String                     @map("recipient_id") @db.Uuid
+  subject     String?
+  body        String
+  readAt      DateTime?                  @map("read_at") @db.Timestamptz(6)
+  createdAt   DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  attachments WorkspaceMessageAttachment[]
+  recipient   User                       @relation("WorkspaceMessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  sender      User                       @relation("WorkspaceMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, createdAt])
+  @@index([senderId, createdAt])
+  @@map("workspace_messages")
+}
+
+model WorkspaceMessageAttachment {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  messageId   String           @map("message_id") @db.Uuid
+  fileName    String           @map("file_name")
+  fileUrl     String           @map("file_url")
+  fileType    String           @map("file_type")
+  fileSize    Int              @map("file_size")
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  message     WorkspaceMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId, createdAt])
+  @@map("workspace_message_attachments")
+}
+
+model ReminderDispatch {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String       @map("user_id") @db.Uuid
+  reminderDate  DateTime     @map("reminder_date") @db.Date
+  kind          ReminderKind
+  sentAt        DateTime     @default(now()) @map("sent_at") @db.Timestamptz(6)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, reminderDate, kind])
+  @@index([reminderDate, kind])
+  @@map("reminder_dispatches")
+}

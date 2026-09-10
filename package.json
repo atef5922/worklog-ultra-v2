@@ -1,0 +1,147 @@
+{
+  "name": "worklog-ultra-app",
+  "version": "0.3.6",
+  "private": true,
+  "description": "WorkLog Ultra desktop application for team work planning, reporting, attendance, and time tracking.",
+  "author": "WorkLog Ultra",
+  "main": "electron/main.cjs",
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "scripts": {
+    "dev": "next dev --webpack",
+    "dev:turbopack": "next dev",
+    "desktop:dev": "node electron/launch.cjs",
+    "desktop:build": "npm run build && powershell -ExecutionPolicy Bypass -File scripts/build-desktop-runtime.ps1 && electron-builder --win",
+    "prebuild": "prisma generate",
+    "build": "next build --webpack",
+    "start": "next start -p 3000",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "prisma generate",
+    "db:migrate:sql": "prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "@radix-ui/react-avatar": "^1.1.11",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-progress": "^1.1.8",
+    "@radix-ui/react-scroll-area": "^1.2.10",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-separator": "^1.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-tabs": "^1.1.13",
+    "@radix-ui/react-toast": "^1.2.15",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "@tailwindcss/postcss": "^4",
+    "bcryptjs": "^3.0.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "exceljs": "^4.4.0",
+    "framer-motion": "^12.38.0",
+    "gsap": "^3.15.0",
+    "jose": "^6.2.3",
+    "lucide-react": "^1.14.0",
+    "next": "16.2.4",
+    "pg": "^8.20.0",
+    "prisma": "^7.8.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "recharts": "^3.8.1",
+    "resend": "^6.12.2",
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.5.0",
+    "zod": "^4.4.3"
+  },
+  "build": {
+    "appId": "com.worklog.ultra",
+    "productName": "WorkLog Ultra",
+    "directories": {
+      "app": "electron",
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "files": [
+      "**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "desktop-runtime/app-runtime.7z",
+        "to": "app-runtime.7z"
+      },
+      {
+        "from": "desktop-runtime/tools/7za.exe",
+        "to": "7za.exe"
+      },
+      {
+        "from": "desktop-runtime/tools/7zip-COPYING.txt",
+        "to": "licenses/7zip-COPYING.txt"
+      },
+      {
+        "from": "desktop-runtime/tools/7zip-LICENSE.txt",
+        "to": "licenses/7zip-LICENSE.txt"
+      },
+      {
+        "from": "desktop-runtime/postgres",
+        "to": "postgres"
+      },
+      {
+        "from": "desktop-runtime/schema.sql",
+        "to": "database-schema.sql"
+      },
+      {
+        "from": "prisma/migrations/0004_screenshot_monitoring/migration.sql",
+        "to": "screenshot-monitoring-schema.sql"
+      },
+      {
+        "from": "prisma/migrations/0005_screenshot_log_survives_delete/migration.sql",
+        "to": "screenshot-log-nullable-schema.sql"
+      },
+      {
+        "from": "prisma/migrations/0007_task_activity_history/migration.sql",
+        "to": "task-activity-history-schema.sql"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icon.png",
+      "artifactName": "WorkLog-Ultra-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "WorkLog Ultra",
+      "uninstallDisplayName": "WorkLog Ultra"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.4",
+    "tailwindcss": "^4",
+    "tsx": "^4.21.0",
+    "typescript": "^5",
+    "vitest": "^3.2.7"
+  }
+}

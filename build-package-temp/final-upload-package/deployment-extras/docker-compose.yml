@@ -1,0 +1,31 @@
+services:
+  worklog-app:
+    build:
+      context: ..
+      dockerfile: deploy-package/Dockerfile
+    container_name: worklog-app
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../public/uploads:/app/public/uploads
+    depends_on:
+      - worklog-db
+
+  worklog-db:
+    image: postgres:16
+    container_name: worklog-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: worklog_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - worklog-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  worklog-postgres-data:

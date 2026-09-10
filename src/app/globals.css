@@ -1,0 +1,1632 @@
+@import "tailwindcss";
+
+:root {
+  --font-sans: var(--font-manrope);
+  /* Single source of truth for the top band: the dashboard header and the
+     sidebar brand row must always share this height, or they visually drift. */
+  /* Mobile keeps 3.125rem: below 900px the root is a fixed 16px and the header
+     still uses 44px touch targets, which a 40px band cannot hold. The desktop
+     value is set alongside the fluid scale below. */
+  --topbar-height: 3.125rem;
+  /*
+   * Rail width, in a variable because the collapse toggle swaps it. 12.1528rem
+   * is 175px at the reference viewport; collapsed is 60px, which holds a 20px
+   * icon with room to centre it.
+   */
+  --sidebar-width: 12.1528rem;
+  --sidebar-width-collapsed: 4.1667rem;
+  --topbar-hairline: inset 0 -1px 0 rgba(223, 232, 247, 0.08);
+  --background: #eef3fb;
+  --foreground: #162235;
+  --panel: #ffffff;
+  --panel-alt: #eef3fb;
+  --panel-border: #c8d5ea;
+  --panel-muted: #f4f7fc;
+  --muted-foreground: #5c6f8f;
+  --input: #eef3fb;
+  --ring: #315fe6;
+  --success: #1a8f67;
+  --warning: #c98b14;
+  --danger: #d5546a;
+  --sidebar: #dfe8f7;
+  --sidebar-foreground: #162235;
+  --grid-line: rgba(88, 112, 150, 0.08);
+  --shadow: 0 20px 45px rgba(87, 113, 150, 0.14);
+  --scroll-thumb: rgba(92, 111, 143, 0.26);
+  --scroll-thumb-hover: rgba(92, 111, 143, 0.46);
+}
+
+html[data-theme="dark"] {
+  --background: #0f1725;
+  --foreground: #e8eef8;
+  --panel: #1a2535;
+  --panel-alt: #223247;
+  --panel-border: #2d3a4f;
+  --panel-muted: #162232;
+  --muted-foreground: #9fb0c8;
+  --input: #182334;
+  --ring: #3d6df2;
+  --success: #1ea672;
+  --warning: #d49b22;
+  --danger: #da5f71;
+  --sidebar: #1a2535;
+  --sidebar-foreground: #dfe7f3;
+  --grid-line: rgba(159, 176, 200, 0.07);
+  --shadow: 0 20px 60px rgba(3, 10, 24, 0.35);
+  --scroll-thumb: rgba(159, 176, 200, 0.24);
+  --scroll-thumb-hover: rgba(159, 176, 200, 0.42);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-panel: var(--panel);
+  --color-panel-alt: var(--panel-alt);
+  --color-panel-border: var(--panel-border);
+  --color-panel-muted: var(--panel-muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --font-sans: var(--font-sans);
+}
+
+* {
+  border-color: var(--panel-border);
+}
+
+html {
+  color-scheme: light;
+  scroll-behavior: smooth;
+}
+
+/*
+ * Fluid desktop scale.
+ *
+ * Every rem-based size in the app (Tailwind spacing, type, radii, the topbar
+ * band, the sidebar rail) is driven by this one value, so the whole UI keeps the
+ * same proportion of the screen instead of getting cramped on smaller viewports
+ * and sparse on larger ones.
+ *
+ * The anchor is 1.054vw: at a 1518px viewport it resolves to exactly 16px — the
+ * reference layout — and at 1366px it resolves to 14.4px, which reproduces that
+ * same reference at 100% browser zoom.
+ *
+ * Why `min()` and not vw alone: browser zoom-out multiplies the viewport in CSS
+ * pixels on BOTH axes, so a vw-driven root tracks it exactly and the layout keeps
+ * its proportions at any zoom. The old 19.5px ceiling broke that — at 67% and 50%
+ * zoom the root stopped growing while the viewport kept going, so the page held
+ * far more rows than it was designed for and the surplus all dumped into the
+ * bottom card row, which ballooned into empty space. The ceiling is now high
+ * enough to stay out of the way, and the 2.3vh term takes over instead: it is the
+ * guard the ceiling was really there for, since only a viewport that is wide
+ * relative to its height (ultra-wides) can overflow vertically, and a term keyed
+ * to height is what actually catches that case. At ordinary desktop aspect ratios
+ * the vw term is the smaller one, so nothing about 100% zoom changes.
+ *
+ * The bounds are deliberately far out of the way, because both of them used to
+ * bind at ordinary zoom levels and binding is exactly what breaks the layout:
+ * zooming IN shrinks the viewport in CSS pixels, so the old 14px floor held the
+ * UI too large for the space it had left (125% needed 11.5px and got 14px, a
+ * fifth too big, which is why the page stopped fitting), while zooming OUT ran
+ * into the ceiling (25% needed 57.6px). Between 11px and 160px the term is free
+ * to track the viewport across Chrome's whole 25%–125% range, and the vh term
+ * still guards the one case a bound is genuinely needed for.
+ *
+ * The 900px threshold matches `min-[900px]`, the breakpoint where the dashboard
+ * switches to its single-screen layout. It used to start at 1024px, which left a
+ * band where that layout was active but the scale was not, so the root snapped
+ * back to 16px and the page needed far more height than it had — 150% zoom lands
+ * squarely in that band. Below 900px the stacked layout takes over and scrolls,
+ * so the fixed root is right again there.
+ *
+ * Media queries are unaffected: `rem` inside a media query always resolves
+ * against the initial 16px, so every Tailwind breakpoint stays where it is.
+ */
+@media (min-width: 900px) {
+  html {
+    font-size: clamp(9px, min(1.054vw, 2.3vh), 160px);
+  }
+
+  /*
+   * :root, not html. The mobile value above is declared on :root, and :root
+   * outranks a bare html selector, so an override written on html loses no
+   * matter that it sits inside the media query.
+   *
+   * 2.7778rem renders 40px at the reference viewport (root = 14.4px there); it
+   * stays proportional on other screens like every other rem in the app.
+   */
+  :root {
+    --topbar-height: 2.7778rem;
+  }
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), sans-serif;
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px),
+    radial-gradient(circle at top, rgba(114, 147, 199, 0.22), transparent 28%);
+  background-size: 32px 32px, 32px 32px, 100% 100%;
+}
+
+html[data-theme="dark"] body {
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px),
+    radial-gradient(circle at top, rgba(48, 71, 102, 0.28), transparent 28%);
+}
+
+a,
+input,
+button,
+select,
+textarea {
+  outline: none;
+}
+
+a,
+button,
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+[role="button"] {
+  cursor: pointer;
+}
+
+::selection {
+  background: rgba(61, 109, 242, 0.35);
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow);
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms ease,
+    background-color 220ms ease;
+}
+
+[data-surface="card"],
+[data-dashboard-card],
+[data-dashboard-panel],
+[data-dashboard-row] {
+  will-change: opacity;
+  transition:
+    box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 220ms ease,
+    background-color 220ms ease;
+}
+
+/*
+ * Time and date fields.
+ *
+ * The browser's own picker button renders as a very faint grey glyph, so at
+ * these field sizes the start/end time inputs read as plain text and nothing
+ * suggests they can be opened. Darkening it, giving it a hit area and a hover
+ * state makes the affordance obvious, and the pointer cursor confirms it on the
+ * way in. Disabled fields keep the default arrow — the timer disables these
+ * while it runs, and a clickable-looking control that does nothing is worse
+ * than a plain one.
+ */
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.62;
+  margin-left: 0.125rem;
+  padding: 0.1875rem;
+  border-radius: 0.375rem;
+  transition:
+    opacity 160ms ease,
+    background-color 160ms ease;
+}
+
+input[type="time"]:hover::-webkit-calendar-picker-indicator,
+input[type="date"]:hover::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]:hover::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator:hover,
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  background-color: rgba(79, 94, 247, 0.14);
+}
+
+input[type="time"]:disabled::-webkit-calendar-picker-indicator,
+input[type="date"]:disabled::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]:disabled::-webkit-calendar-picker-indicator {
+  cursor: default;
+  opacity: 0.28;
+  background-color: transparent;
+}
+
+/* The glyph is painted dark, so it has to be inverted to stay legible on the
+   dark theme's field background. */
+html[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator,
+html[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,
+html[data-theme="dark"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.7);
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #31445f transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #31445f;
+  border-radius: 999px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.card-gradient-purple {
+  background: linear-gradient(135deg, #5036d9 0%, #3249f1 100%);
+}
+
+.card-gradient-green {
+  background: linear-gradient(135deg, #0f8f6f 0%, #22b573 100%);
+}
+
+.card-gradient-amber {
+  background: linear-gradient(135deg, #c47b10 0%, #f0a21d 100%);
+}
+
+.card-gradient-blue {
+  background: linear-gradient(135deg, #1279c5 0%, #2797e6 100%);
+}
+
+.auth-backdrop {
+  background:
+    radial-gradient(circle at top left, rgba(153, 184, 229, 0.48), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(244, 203, 224, 0.5), transparent 28%),
+    #eef3fb;
+}
+
+html[data-theme="dark"] .auth-backdrop {
+  background:
+    radial-gradient(circle at top left, rgba(37, 60, 90, 0.6), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(27, 43, 68, 0.85), transparent 28%),
+    #0f1725;
+}
+
+.dashboard-topbar {
+  height: var(--topbar-height);
+  flex: 0 0 auto;
+  background: linear-gradient(160deg, #000080 0%, #001f66 55%, #020b31 100%) !important;
+  color: #f7fbff !important;
+  box-shadow: var(--topbar-hairline);
+  /* No backdrop-filter here: the gradient above is fully opaque, so the blur had
+     nothing to show through — it only cost a compositor pass on every frame of
+     the entrance animation. */
+}
+
+/*
+ * A page opts into a single-screen layout by marking its root `data-fit-viewport`.
+ * Only then does the motion shell stretch to fill the main area; every other page
+ * keeps hugging its content so the task monitor stays directly below it.
+ */
+@media (min-width: 900px) {
+  .dashboard-shell:has([data-fit-viewport]) {
+    display: flex;
+    flex: 1 1 0%;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  /*
+   * A fit-viewport page is sized to end exactly at the bottom of the screen, so
+   * the scroller around it must never scroll — on either axis. Without this the
+   * few pixels the entrance animation lifts content by were enough to flash a
+   * scrollbar on every reload and then take it away once the animation landed.
+   */
+  .dashboard-scroll:has([data-fit-viewport]) {
+    overflow: hidden;
+  }
+}
+
+/*
+ * Every in-panel scroller on the dashboard.
+ *
+ * Declaring BOTH axes is the whole point: with only `overflow-y: auto` the
+ * other axis is still `visible`, and CSS then forces it to compute to `auto`
+ * too — which is where the stray horizontal scrollbar under the cards came
+ * from. Pinning overflow-x to hidden is what removes it.
+ */
+.dashboard-scroll-area {
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+
+.dashboard-scroll-area::-webkit-scrollbar {
+  width: 6px;
+  height: 0;
+}
+
+.dashboard-scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dashboard-scroll-area::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 999px;
+}
+
+.dashboard-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+}
+
+/* The work-plan table deliberately owns both axes: rows scroll vertically to
+   fill the remaining viewport and the fixed readable columns pan horizontally
+   on narrow screens instead of collapsing into wrapped text. */
+.dashboard-workplan-table-scroll {
+  --workplan-grid: #dde5f0;
+  --workplan-head: #f4f7fb;
+  --workplan-head-text: #526078;
+  --workplan-row-alt: #fbfcfe;
+  --workplan-row-hover: #f6f8fc;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+
+html[data-theme="dark"] .dashboard-workplan-table-scroll {
+  --workplan-grid: rgba(148, 163, 184, 0.18);
+  --workplan-head: rgba(30, 41, 59, 0.78);
+  --workplan-head-text: #aebbd0;
+  --workplan-row-alt: rgba(30, 41, 59, 0.2);
+  --workplan-row-hover: rgba(99, 102, 241, 0.08);
+}
+
+.dashboard-workplan-table-scroll::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+.dashboard-workplan-table-scroll::-webkit-scrollbar-track,
+.dashboard-filter-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dashboard-workplan-table-scroll::-webkit-scrollbar-thumb,
+.dashboard-filter-scroll::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 999px;
+}
+
+.dashboard-workplan-table-scroll::-webkit-scrollbar-thumb:hover,
+.dashboard-filter-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-hover);
+}
+
+.dashboard-filter-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+
+.dashboard-filter-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 3px;
+}
+
+.dashboard-workplan-table-scroll tbody tr > td {
+  background-color: var(--panel);
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.dashboard-workplan-table-scroll tbody tr:nth-child(even):not([data-live="true"]) > td {
+  background-color: var(--workplan-row-alt);
+}
+
+.dashboard-workplan-table-scroll tbody tr:not([data-live="true"]):hover > td {
+  background-color: var(--workplan-row-hover);
+}
+
+.dashboard-workplan-table-scroll tbody tr[data-live="true"] > td {
+  background-color: var(--panel);
+  border-bottom-color: var(--workplan-grid);
+}
+
+.dashboard-workplan-table-scroll tbody tr[data-live="true"] > td:first-child {
+  box-shadow: inset 3px 0 0 #10b981;
+}
+
+.dashboard-workplan-table-scroll .task-btn-go {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.dashboard-workplan-table-scroll .task-btn-go:hover:not(:disabled) {
+  border-color: #93c5fd;
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.dashboard-workplan-table-scroll .task-btn-hold {
+  border-color: #fed7aa;
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.dashboard-workplan-table-scroll .task-btn-hold:hover:not(:disabled) {
+  border-color: #fdba74;
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.dashboard-workplan-table-scroll .task-btn-primary {
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.dashboard-workplan-table-scroll .task-btn-primary:hover:not(:disabled) {
+  border-color: #6ee7b7;
+  background: #d1fae5;
+  color: #065f46;
+}
+
+html[data-theme="dark"] .dashboard-workplan-table-scroll .task-btn-go {
+  border-color: rgba(96, 165, 250, 0.34);
+  background: rgba(59, 130, 246, 0.12);
+  color: #a9d0ff;
+}
+
+html[data-theme="dark"] .dashboard-workplan-table-scroll .task-btn-hold {
+  border-color: rgba(251, 146, 60, 0.34);
+  background: rgba(249, 115, 22, 0.12);
+  color: #fdba8c;
+}
+
+html[data-theme="dark"] .dashboard-workplan-table-scroll .task-btn-primary {
+  border-color: rgba(52, 211, 153, 0.34);
+  background: rgba(16, 185, 129, 0.12);
+  color: #9ce5c4;
+}
+
+html[data-theme="dark"] .dashboard-workplan-table-scroll .task-btn-go:hover:not(:disabled) {
+  border-color: rgba(96, 165, 250, 0.5);
+  background: rgba(59, 130, 246, 0.22);
+  color: #d3e7ff;
+}
+
+html[data-theme="dark"] .dashboard-workplan-table-scroll .task-btn-hold:hover:not(:disabled) {
+  border-color: rgba(251, 146, 60, 0.5);
+  background: rgba(249, 115, 22, 0.22);
+  color: #ffdcc2;
+}
+
+html[data-theme="dark"] .dashboard-workplan-table-scroll .task-btn-primary:hover:not(:disabled) {
+  border-color: rgba(52, 211, 153, 0.5);
+  background: rgba(16, 185, 129, 0.22);
+  color: #c6f5df;
+}
+
+/* The rail is navy in both themes, so the default slate thumb would vanish. */
+.dashboard-sidebar .dashboard-scroll-area {
+  scrollbar-color: rgba(226, 236, 255, 0.26) transparent;
+}
+
+.dashboard-sidebar .dashboard-scroll-area::-webkit-scrollbar-thumb {
+  background: rgba(226, 236, 255, 0.26);
+}
+
+.dashboard-sidebar .dashboard-scroll-area::-webkit-scrollbar-thumb:hover {
+  background: rgba(226, 236, 255, 0.44);
+}
+
+/*
+ * Entrance choreography.
+ *
+ * This used to run in framer-motion and GSAP, which meant the server HTML was
+ * emitted at `opacity: 0` and stayed invisible until hydration finished. On a
+ * reload that left the page blank except for the task monitor — the one strip
+ * with no animation of its own — so it read as a stuck element on an empty
+ * page. Driving the same motion from CSS means the first paint is already the
+ * real page and the animation is only decoration over it.
+ *
+ * fill-mode is `backwards`, never `both`: `both` keeps the end frame applied
+ * and can leave a stale transform on an otherwise stationary panel.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  /*
+   * These are the original GSAP entrance values, kept exactly: y 22px, scale
+   * 0.985, 0.58s on power3.out, 0.06s stagger. Only the engine changed. An
+   * earlier pass shortened them and the motion lost its weight, so the numbers
+   * are deliberate — shorten them and the premium feel goes with it.
+   */
+  @keyframes dashboard-rise {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 1.5rem, 0) scale(0.985);
+    }
+  }
+
+  @keyframes dashboard-drop {
+    from {
+      opacity: 0;
+      transform: translate3d(0, -1.11rem, 0);
+    }
+  }
+
+  @keyframes dashboard-slide-in {
+    from {
+      opacity: 0;
+      transform: translate3d(-1.8rem, 0, 0);
+    }
+  }
+
+  .dashboard-sidebar {
+    animation: dashboard-slide-in 0.42s cubic-bezier(0.215, 0.61, 0.355, 1) backwards;
+  }
+
+  .dashboard-topbar {
+    animation: dashboard-drop 0.32s cubic-bezier(0.215, 0.61, 0.355, 1) backwards;
+  }
+
+  /*
+   * Sections, then cards, then panels — one continuous 0.06s cascade in document
+   * order, the way the GSAP stagger read. The topbar and monitor strip carry
+   * `data-page-section` too but enter on their own terms, so they are excluded
+   * rather than overridden: the `animation` shorthand below would otherwise
+   * reset their delay back to 0.
+   */
+  [data-page-section]:not(.dashboard-topbar, .dashboard-monitor-strip),
+  [data-dashboard-card],
+  [data-dashboard-panel] {
+    animation: dashboard-rise 0.58s cubic-bezier(0.215, 0.61, 0.355, 1) backwards;
+  }
+
+  [data-page-section]:not(.dashboard-topbar, .dashboard-monitor-strip):nth-of-type(2) {
+    animation-delay: 0.06s;
+  }
+
+  [data-page-section]:not(.dashboard-topbar, .dashboard-monitor-strip):nth-of-type(3) {
+    animation-delay: 0.12s;
+  }
+
+  [data-dashboard-card] {
+    animation-delay: 0.12s;
+  }
+
+  [data-dashboard-card]:nth-child(2) {
+    animation-delay: 0.18s;
+  }
+
+  [data-dashboard-card]:nth-child(3) {
+    animation-delay: 0.24s;
+  }
+
+  [data-dashboard-card]:nth-child(4) {
+    animation-delay: 0.3s;
+  }
+
+  [data-dashboard-card]:nth-child(5) {
+    animation-delay: 0.36s;
+  }
+
+  [data-dashboard-panel] {
+    animation-delay: 0.18s;
+  }
+
+  [data-dashboard-panel]:nth-child(2) {
+    animation-delay: 0.24s;
+  }
+
+  [data-dashboard-panel]:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+
+  /* Lands with the page instead of being the only thing on screen. */
+  .dashboard-monitor-strip {
+    animation: dashboard-rise 0.58s cubic-bezier(0.215, 0.61, 0.355, 1) 0.3s backwards;
+  }
+
+  /* Replays whenever its `key` changes, so a new figure pops without framer
+     having to hydrate first. */
+  @keyframes dashboard-value-pop {
+    from {
+      opacity: 0.5;
+      transform: scale(0.9);
+    }
+  }
+
+  .dashboard-value-pop {
+    animation: dashboard-value-pop 0.26s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  }
+}
+
+/*
+ * Panel accents.
+ *
+ * Each dashboard panel carries its own colour: a hairline gradient bar across
+ * the top. There used to be a second layer here too, a soft radial wash
+ * fading in from the top-right corner — meant as a subtle colour tint, it
+ * sat directly behind the header's date text and count badge and read as a
+ * grey smudge/shadow behind them rather than "clean". The bar alone still
+ * carries the panel's identity.
+ */
+.dashboard-accent {
+  background-repeat: no-repeat;
+  background-size: 100% 3px;
+  background-position: top center;
+  background-image: linear-gradient(90deg, var(--accent-a), var(--accent-b));
+}
+
+.dashboard-accent:hover {
+  border-color: var(--accent-line);
+}
+
+.accent-indigo {
+  --accent-a: #4f5ef7;
+  --accent-b: #8b9dff;
+  --accent-wash: rgba(79, 94, 247, 0.1);
+  --accent-line: rgba(79, 94, 247, 0.4);
+}
+
+.accent-violet {
+  --accent-a: #7c3aed;
+  --accent-b: #c084fc;
+  --accent-wash: rgba(139, 92, 246, 0.11);
+  --accent-line: rgba(139, 92, 246, 0.4);
+}
+
+.accent-sky {
+  --accent-a: #0284c7;
+  --accent-b: #7dd3fc;
+  --accent-wash: rgba(14, 165, 233, 0.11);
+  --accent-line: rgba(14, 165, 233, 0.4);
+}
+
+.accent-emerald {
+  --accent-a: #059669;
+  --accent-b: #6ee7b7;
+  --accent-wash: rgba(16, 185, 129, 0.11);
+  --accent-line: rgba(16, 185, 129, 0.4);
+}
+
+.accent-rose {
+  --accent-a: #e11d48;
+  --accent-b: #fda4af;
+  --accent-wash: rgba(244, 63, 94, 0.1);
+  --accent-line: rgba(244, 63, 94, 0.4);
+}
+
+.accent-amber {
+  --accent-a: #d97706;
+  --accent-b: #fcd34d;
+  --accent-wash: rgba(245, 158, 11, 0.12);
+  --accent-line: rgba(245, 158, 11, 0.45);
+}
+
+.accent-teal {
+  --accent-a: #0d9488;
+  --accent-b: #5eead4;
+  --accent-wash: rgba(20, 184, 166, 0.11);
+  --accent-line: rgba(20, 184, 166, 0.4);
+}
+
+/*
+ * Greeting chip.
+ *
+ * Only a crisp rim and a top highlight - no outer glow. A 24px blur under a
+ * 32px chip reads as a smudge rather than depth at this size.
+ */
+@keyframes greeting-wave {
+  0%,
+  62%,
+  100% {
+    transform: rotate(0deg);
+  }
+  10% {
+    transform: rotate(16deg);
+  }
+  20% {
+    transform: rotate(-9deg);
+  }
+  30% {
+    transform: rotate(16deg);
+  }
+  40% {
+    transform: rotate(-5deg);
+  }
+  51% {
+    transform: rotate(11deg);
+  }
+}
+
+.dashboard-greeting-wave {
+  display: inline-block;
+  /* Pivot at the wrist so the hand swings instead of spinning in place. */
+  transform-origin: 70% 78%;
+  animation: greeting-wave 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-greeting-wave {
+    animation: none;
+  }
+}
+
+/* Brand row of the desktop rail: same band as the header, so the logo and the
+   header controls sit on one centre line and share one bottom hairline. */
+.dashboard-brandbar {
+  height: var(--topbar-height);
+  flex: 0 0 auto;
+  box-shadow: var(--topbar-hairline);
+}
+
+/*
+ * Collapsed rail.
+ *
+ * Every rule keys off `data-sidebar-collapsed` on <html> rather than off React
+ * state, and the labels are hidden rather than unmounted. That keeps the markup
+ * the server sends identical to the markup the client hydrates, so restoring the
+ * stored preference cannot produce a hydration mismatch. The mobile drawer is
+ * untouched: these selectors are all scoped to .dashboard-sidebar.
+ */
+html[data-sidebar-collapsed="true"] {
+  --sidebar-width: var(--sidebar-width-collapsed);
+}
+
+html[data-sidebar-collapsed="true"] .dashboard-sidebar [data-sidebar-label] {
+  display: none;
+}
+
+/* With the labels gone the icons have a row to themselves, so centre them. */
+html[data-sidebar-collapsed="true"] .dashboard-sidebar [data-sidebar-row] {
+  justify-content: center;
+  gap: 0;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+/* The unread dot has no end-of-row left to sit at, so it rides the icon. */
+html[data-sidebar-collapsed="true"] .dashboard-sidebar [data-sidebar-badge] {
+  position: absolute;
+  right: 0.5rem;
+  top: 0.375rem;
+  margin-left: 0;
+}
+
+html[data-sidebar-collapsed="true"] .dashboard-sidebar [data-sidebar-brand] {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/*
+ * Collapse control.
+ *
+ * It rides the seam between the rail and the header rather than sitting inside
+ * the brand row. Measured in Manrope, "WorkLog Ultra" is 95px at 1rem; a 175px
+ * rail minus its 39.6px of row padding, the 28.8px mark and the gap leaves
+ * 99.4px — enough for the name, but not for the name and a button. The name was
+ * what lost, truncating to "WorkLo…". Both surfaces are navy at this seam, so a
+ * ringed disc there reads as a deliberate control rather than something stuck on
+ * the edge.
+ */
+.dashboard-sidebar-toggle {
+  position: absolute;
+  right: 0;
+  top: calc(var(--topbar-height) / 2);
+  z-index: 1;
+  display: inline-flex;
+  height: 1.75rem;
+  width: 1.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(226, 236, 255, 0.24);
+  background: linear-gradient(150deg, #1a367f 0%, #0a1a4d 100%);
+  color: rgba(233, 240, 255, 0.86);
+  box-shadow:
+    0 8px 18px rgba(3, 8, 18, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  transform: translate(50%, -50%);
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.dashboard-sidebar-toggle:hover {
+  border-color: rgba(226, 236, 255, 0.5);
+  background: linear-gradient(150deg, #244aa8 0%, #12275f 100%);
+  color: #ffffff;
+  box-shadow:
+    0 10px 22px rgba(3, 8, 18, 0.58),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  transform: translate(50%, -50%) scale(1.08);
+}
+
+.dashboard-sidebar-toggle:active {
+  transform: translate(50%, -50%) scale(0.96);
+}
+
+.dashboard-sidebar-toggle:focus-visible {
+  outline: 2px solid #8ea8ff;
+  outline-offset: 2px;
+}
+
+.dashboard-sidebar [data-sidebar-toggle-icon="expand"] {
+  display: none;
+}
+
+html[data-sidebar-collapsed="true"] .dashboard-sidebar [data-sidebar-toggle-icon="expand"] {
+  display: block;
+}
+
+html[data-sidebar-collapsed="true"] .dashboard-sidebar [data-sidebar-toggle-icon="collapse"] {
+  display: none;
+}
+
+.dashboard-topbar .text-\[var\(--foreground\)\],
+.dashboard-topbar .text-\[var\(--muted-foreground\)\] {
+  color: #f7fbff !important;
+}
+
+.dashboard-topbar .bg-\[var\(--panel\)\] {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.dashboard-topbar .border-\[var\(--panel-border\)\] {
+  border-color: rgba(223, 232, 247, 0.16) !important;
+}
+
+.dashboard-topbar .text-\[\#4f5ef7\] {
+  color: #b9d3ff !important;
+}
+
+.dashboard-topbar .hover\:bg-\[var\(--panel-alt\)\]:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+
+.dashboard-topbar .topbar-text-strong {
+  color: #ffffff !important;
+}
+
+.dashboard-topbar .topbar-text-muted {
+  color: rgba(247, 251, 255, 0.68) !important;
+}
+
+.dashboard-topbar .dashboard-header-popover {
+  background: var(--panel) !important;
+  color: var(--foreground) !important;
+}
+
+.dashboard-topbar .dashboard-header-popover .text-\[var\(--foreground\)\] {
+  color: var(--foreground) !important;
+}
+
+.dashboard-topbar .dashboard-header-popover .text-\[var\(--muted-foreground\)\] {
+  color: var(--muted-foreground) !important;
+}
+
+.dashboard-topbar .dashboard-header-popover .bg-\[var\(--panel-muted\)\] {
+  background: var(--panel-muted) !important;
+}
+
+.dashboard-topbar .dashboard-header-popover .bg-\[var\(--panel-alt\)\] {
+  background: var(--panel-alt) !important;
+}
+
+.dashboard-topbar .dashboard-header-popover .border-\[var\(--panel-border\)\] {
+  border-color: var(--panel-border) !important;
+}
+
+.dashboard-topbar .dashboard-header-popover .text-\[\#4f5ef7\] {
+  color: #4f5ef7 !important;
+}
+
+html[data-theme="light"] .card-gradient-purple .text-white,
+html[data-theme="light"] .card-gradient-green .text-white,
+html[data-theme="light"] .card-gradient-amber .text-white,
+html[data-theme="light"] .card-gradient-blue .text-white {
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] button.button-force-white,
+html[data-theme="light"] a.button-force-white,
+html[data-theme="light"] button.button-force-white *,
+html[data-theme="light"] a.button-force-white *,
+html[data-theme="light"] button.button-force-white svg,
+html[data-theme="light"] a.button-force-white svg {
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .text-white {
+  color: var(--foreground) !important;
+}
+
+html[data-theme="light"] .hover\:text-white:hover {
+  color: var(--foreground) !important;
+}
+
+.button-force-white,
+.button-force-white:hover,
+.button-force-white:focus-visible,
+.button-force-white:active,
+.button-force-white:disabled,
+.button-force-white *,
+.button-force-white:hover *,
+.button-force-white:focus-visible *,
+.button-force-white:active *,
+.button-force-white:disabled *,
+.button-force-white svg,
+.button-force-white:disabled svg {
+  color: #ffffff !important;
+}
+
+.sidebar-force-white,
+.sidebar-force-white *,
+.sidebar-force-white svg {
+  color: #ffffff !important;
+}
+
+.auth-action-button {
+  color: #ffffff !important;
+}
+
+.auth-action-button:hover:not(:disabled),
+.auth-action-button:focus-visible:not(:disabled),
+.auth-action-button:active:not(:disabled) {
+  color: #ffffff !important;
+}
+
+@keyframes trackerGlow {
+  0%,
+  100% {
+    transform: translateY(0);
+    box-shadow: 0 10px 24px rgba(17, 24, 39, 0.08);
+  }
+  50% {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px rgba(61, 109, 242, 0.14);
+  }
+}
+
+@keyframes dashboardProgressSweep {
+  0% {
+    transform: scale(0.96);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.dashboard-progress-ring {
+  animation: dashboardProgressSweep 820ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.tracker-button {
+  height: 44px;
+  border-radius: 14px;
+  padding-inline: 16px;
+  font-weight: 700;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease;
+}
+
+.tracker-button:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.01);
+}
+
+.tracker-button:disabled {
+  opacity: 0.55;
+}
+
+.tracker-button-start {
+  border: 1px solid rgba(34, 211, 238, 0.26);
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.22), rgba(59, 130, 246, 0.18));
+  color: #99f6ff;
+  box-shadow: 0 10px 24px rgba(8, 145, 178, 0.18);
+}
+
+.tracker-button-start:hover:not(:disabled) {
+  box-shadow: 0 16px 30px rgba(8, 145, 178, 0.28);
+}
+
+.tracker-button-pause {
+  border: 1px solid rgba(250, 204, 21, 0.24);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(251, 191, 36, 0.12));
+  color: #fde68a;
+  box-shadow: 0 10px 24px rgba(217, 119, 6, 0.16);
+}
+
+.tracker-button-pause:hover:not(:disabled) {
+  box-shadow: 0 16px 30px rgba(217, 119, 6, 0.24);
+}
+
+.tracker-button-stop {
+  border: 1px solid rgba(251, 113, 133, 0.26);
+  background: linear-gradient(135deg, rgba(225, 29, 72, 0.18), rgba(244, 63, 94, 0.12));
+  color: #fecdd3;
+  box-shadow: 0 10px 24px rgba(190, 24, 93, 0.16);
+}
+
+.tracker-button-stop:hover:not(:disabled) {
+  box-shadow: 0 16px 30px rgba(190, 24, 93, 0.24);
+}
+
+.tracker-button-end {
+  border: 1px solid rgba(74, 222, 128, 0.28);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.22), rgba(34, 197, 94, 0.14));
+  color: #bbf7d0;
+  box-shadow: 0 10px 24px rgba(5, 150, 105, 0.18);
+}
+
+.tracker-button-end:hover:not(:disabled) {
+  box-shadow: 0 16px 30px rgba(5, 150, 105, 0.26);
+}
+
+.tracker-button-reset {
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.16), rgba(168, 85, 247, 0.12));
+  color: #ddd6fe;
+  box-shadow: 0 10px 24px rgba(109, 40, 217, 0.14);
+}
+
+.tracker-button-reset:hover:not(:disabled) {
+  box-shadow: 0 16px 30px rgba(109, 40, 217, 0.22);
+}
+
+.tracker-duration-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 144px;
+  border-radius: 999px;
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.1), rgba(59, 130, 246, 0.08));
+  padding: 12px 16px;
+  font-size: 0.875rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  color: #67e8f9;
+  animation: trackerGlow 2.8s ease-in-out infinite;
+}
+
+html[data-theme="light"] .tracker-button-start {
+  border-color: rgba(8, 145, 178, 0.22);
+  background: linear-gradient(135deg, rgba(165, 243, 252, 0.82), rgba(191, 219, 254, 0.9));
+  color: #0f4f61;
+}
+
+html[data-theme="light"] .tracker-button-pause {
+  border-color: rgba(217, 119, 6, 0.18);
+  background: linear-gradient(135deg, rgba(254, 240, 138, 0.95), rgba(253, 230, 138, 0.82));
+  color: #92400e;
+}
+
+html[data-theme="light"] .tracker-button-stop {
+  border-color: rgba(225, 29, 72, 0.18);
+  background: linear-gradient(135deg, rgba(254, 205, 211, 0.95), rgba(254, 226, 226, 0.88));
+  color: #9f1239;
+}
+
+html[data-theme="light"] .tracker-button-end {
+  border-color: rgba(5, 150, 105, 0.2);
+  background: linear-gradient(135deg, rgba(187, 247, 208, 0.95), rgba(220, 252, 231, 0.88));
+  color: #166534;
+}
+
+html[data-theme="light"] .tracker-button-reset {
+  border-color: rgba(109, 40, 217, 0.2);
+  background: linear-gradient(135deg, rgba(233, 213, 255, 0.92), rgba(243, 232, 255, 0.9));
+  color: #6d28d9;
+}
+
+html[data-theme="light"] .tracker-duration-chip {
+  border-color: rgba(14, 116, 144, 0.18);
+  background: linear-gradient(135deg, rgba(224, 242, 254, 0.94), rgba(219, 234, 254, 0.92));
+  color: #0f5f78;
+  box-shadow: 0 10px 24px rgba(59, 130, 246, 0.08);
+}
+
+.history-table-shell {
+  background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+}
+
+.history-row {
+  border-color: rgba(148, 163, 184, 0.24) !important;
+  box-shadow: 0 14px 30px rgba(148, 163, 184, 0.16);
+}
+
+.history-row-default {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(241, 247, 255, 0.98) 100%);
+}
+
+.history-row-recent {
+  background: linear-gradient(135deg, rgba(239, 246, 255, 0.99) 0%, rgba(224, 238, 255, 0.99) 100%);
+}
+
+.history-row-yesterday {
+  background: linear-gradient(135deg, rgba(248, 250, 252, 0.98) 0%, rgba(235, 243, 255, 0.96) 100%);
+}
+
+html[data-theme="dark"] .history-table-shell {
+  background: linear-gradient(180deg, rgba(19, 29, 45, 0.96) 0%, rgba(15, 23, 37, 0.98) 100%);
+}
+
+html[data-theme="dark"] .history-row {
+  border-color: rgba(180, 124, 38, 0.38) !important;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.26);
+}
+
+html[data-theme="dark"] .history-row-default {
+  background: linear-gradient(135deg, rgba(41, 30, 12, 0.96) 0%, rgba(67, 33, 13, 0.94) 100%);
+}
+
+html[data-theme="dark"] .history-row-recent {
+  background: linear-gradient(135deg, rgba(76, 29, 12, 0.98) 0%, rgba(120, 53, 15, 0.94) 100%);
+}
+
+html[data-theme="dark"] .history-row-yesterday {
+  background: linear-gradient(135deg, rgba(51, 65, 85, 0.96) 0%, rgba(120, 53, 15, 0.84) 100%);
+}
+
+/*
+ * Work plan task cards.
+ *
+ * Every card used to paint a full-bleed gradient chosen by priority and state —
+ * rose for urgent, amber for pending, blue for running, emerald for done — so a
+ * normal day turned the two columns into a block of competing colour and the
+ * eye had nothing left to land on. The surface is now the same panel white as
+ * everything else on the dashboard, and the colour survives as a 3px rail down
+ * the left edge plus the chips: enough to scan the column by, quiet enough to
+ * read the text over. This is the usual pattern in dashboards that hold a lot of
+ * rows, and it is what makes the density feel deliberate instead of loud.
+ *
+ * The tone is set by one `data-tone` attribute, so the card never has to know
+ * which of the six accents it ended up with.
+ */
+.task-card {
+  --task-accent: #94a3b8;
+  position: relative;
+  isolation: isolate;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  box-shadow: none;
+  transition:
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+/*
+ * A lift, not a zoom.
+ *
+ * scale() resizes every glyph on the card, and on Windows with a fractional
+ * display scale (125%/150%, the common laptop default) that resize lands on
+ * a sub-pixel grid the OS compositor doesn't sample cleanly — the text goes
+ * soft, and forcing a GPU layer to work around it made it worse, not better,
+ * because now that layer's own rasterisation was the mismatched one. A
+ * translateY lift moves the same pixels instead of resampling them, so
+ * there is nothing for a display scale to blur: this is the same lift
+ * [data-dashboard-card] already uses elsewhere on the page.
+ */
+.task-card:hover {
+  box-shadow: none;
+  z-index: 1;
+}
+
+/*
+ * Priority border — one named colour per tier, white card behind all of
+ * them. A named colour the eye can actually learn ("violet border is High")
+ * beats one derived from a blend; the card surface stays the plain panel
+ * colour (white in light mode) so the border alone carries the meaning.
+ */
+.task-card[data-tone="critical"] {
+  --task-accent: #9f1239;
+  border-color: #e5e7eb;
+}
+
+.task-card[data-tone="high"] {
+  --task-accent: #ef4444;
+  border-color: #e5e7eb;
+}
+
+.task-card[data-tone="normal"] {
+  --task-accent: #2563eb;
+  border-color: #e5e7eb;
+}
+
+.task-card[data-tone="low"] {
+  --task-accent: #0d9488;
+  border-color: #e5e7eb;
+}
+
+.task-card[data-tone="done"] {
+  --task-accent: #059669;
+  border-color: #e5e7eb;
+}
+
+/* Live indicator removed - keeping subtle gray border for clean look */
+.task-card[data-live="true"] {
+  /* No special styling - maintains the subtle gray border */
+}
+
+/* The note keeps a surface of its own so it still reads as a quote of the task
+   rather than a second paragraph — a muted fill only, no border, so it doesn't
+   add a second outline inside the card's own. */
+.task-card-note {
+  background: var(--panel-muted);
+}
+
+/*
+ * Card chips.
+ *
+ * One shape, one size, one weight; only the fill changes, and it comes from
+ * `data-chip`. These used to be a saturated two-stop gradient with white text,
+ * which made every chip the loudest thing on a card whose actual subject is
+ * the task title, then briefly a very light tinted wash that read as washed
+ * out rather than premium. This is the middle: a flat, fully opaque solid
+ * fill per tone — the soft-badge convention most SaaS dashboards use for
+ * labels — declared as real colour pairs per theme instead of one blended
+ * from a CSS variable, so the fill is genuinely solid in both.
+ */
+.task-chip {
+  border: 1px solid transparent;
+  background: #f1f5f9;
+  color: #475569;
+}
+
+html[data-theme="dark"] .task-chip {
+  background: #1e293b;
+  color: #cbd5e1;
+  border-color: #334155;
+}
+
+/* Professional muted color palette */
+.task-chip[data-chip="critical"] {
+  background: #ffffff;
+  color: #000000;
+  border-color: #d1d5db;
+}
+
+html[data-theme="dark"] .task-chip[data-chip="critical"] {
+  background: #1f2937;
+  color: #ffffff;
+  border-color: #374151;
+}
+
+.task-chip[data-chip="high"] {
+  background: #ffffff;
+  color: #000000;
+  border-color: #d1d5db;
+}
+
+html[data-theme="dark"] .task-chip[data-chip="high"] {
+  background: #1f2937;
+  color: #ffffff;
+  border-color: #374151;
+}
+
+.task-chip[data-chip="normal"] {
+  background: #ffffff;
+  color: #000000;
+  border-color: #d1d5db;
+}
+
+html[data-theme="dark"] .task-chip[data-chip="normal"] {
+  background: #1f2937;
+  color: #ffffff;
+  border-color: #374151;
+}
+
+.task-chip[data-chip="low"],
+.task-chip[data-chip="done"] {
+  background: #ffffff;
+  color: #000000;
+  border-color: #d1d5db;
+}
+
+html[data-theme="dark"] .task-chip[data-chip="low"],
+html[data-theme="dark"] .task-chip[data-chip="done"] {
+  background: #1f2937;
+  color: #ffffff;
+  border-color: #374151;
+}
+
+.task-chip[data-chip="active"] {
+  background: #ffffff;
+  color: #000000;
+  border-color: #d1d5db;
+}
+
+html[data-theme="dark"] .task-chip[data-chip="active"] {
+  background: #1f2937;
+  color: #ffffff;
+  border-color: #374151;
+}
+
+.task-chip[data-chip="pending"] {
+  background: #ffffff;
+  color: #000000;
+  border-color: #d1d5db;
+}
+
+html[data-theme="dark"] .task-chip[data-chip="pending"] {
+  background: #1f2937;
+  color: #ffffff;
+  border-color: #374151;
+}
+
+.task-chip[data-chip="followup"] {
+  background: #ffffff;
+  color: #000000;
+  border-color: #d1d5db;
+}
+
+html[data-theme="dark"] .task-chip[data-chip="followup"] {
+  background: #1f2937;
+  color: #ffffff;
+  border-color: #374151;
+}
+
+.task-chip[data-chip="continued"] {
+  background: #ffffff;
+  color: #000000;
+  border-color: #d1d5db;
+}
+
+html[data-theme="dark"] .task-chip[data-chip="continued"] {
+  background: #1f2937;
+  color: #ffffff;
+  border-color: #374151;
+}
+
+.task-chip[data-chip="reopened"] {
+  background: #ffffff;
+  color: #000000;
+  border-color: #d1d5db;
+}
+
+html[data-theme="dark"] .task-chip[data-chip="reopened"] {
+  background: #1f2937;
+  color: #ffffff;
+  border-color: #374151;
+}
+
+/*
+ * The live dot.
+ *
+ * A task whose timer is actually counting gets the one moving thing on the
+ * card: a filled dot with a ring expanding out of it, the signal every
+ * monitoring dashboard uses for "this is happening now". The ring is a
+ * pseudo-element so the dot itself stays a crisp fixed size, and both take
+ * their colour from the chip they sit in.
+ */
+.task-live-dot {
+  position: relative;
+  display: inline-flex;
+  height: 0.375rem;
+  width: 0.375rem;
+  flex: none;
+  border-radius: 999px;
+  background: #22c55e;
+}
+
+.task-live-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #22c55e;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes task-live-ping {
+    0% {
+      transform: scale(1);
+      opacity: 0.55;
+    }
+
+    70%,
+    100% {
+      transform: scale(2.8);
+      opacity: 0;
+    }
+  }
+
+  .task-live-dot::after {
+    animation: task-live-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+
+  /* The card itself breathes while its timer runs, so a live task is
+     findable from across the column without reading a single chip — the
+     same signal the dot gives, just at card scale. */
+  @keyframes task-live-breathe {
+    0%,
+    100% {
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--task-accent) 30%, transparent);
+    }
+
+    50% {
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--task-accent) 45%, transparent);
+    }
+  }
+
+  .task-card[data-live="true"] {
+    animation: task-live-breathe 2.4s ease-in-out infinite;
+  }
+}
+
+/*
+ * Task action buttons — soft premium fills.
+ *
+ * Solid saturated fills (Start/Pause/Done/Edit/Delete etc.) still read as too
+ * loud sitting in a row together. This is the same light-fill/dark-text
+ * convention the chips already use: a faint tint plus solid text carries the
+ * meaning without the button shouting for attention. One class per meaning,
+ * not per component, so the timer's Start/Pause/Done and the manage
+ * controls' Edit/Delete/Archive/Restore all draw from the same five.
+ */
+/* Clean white button colors with colored hover states */
+.task-btn-go {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #d1d5db;
+}
+
+.task-btn-go:hover:not(:disabled) {
+  background: #166534;
+  border-color: #166534;
+  color: #ffffff;
+}
+
+.task-btn-hold {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #d1d5db;
+}
+
+.task-btn-hold:hover:not(:disabled) {
+  background: #92400e;
+  border-color: #92400e;
+  color: #ffffff;
+}
+
+.task-btn-primary {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #d1d5db;
+}
+
+.task-btn-primary:hover:not(:disabled) {
+  background: #5b21b6;
+  border-color: #5b21b6;
+  color: #ffffff;
+}
+
+.task-btn-neutral {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #d1d5db;
+}
+
+.task-btn-neutral:hover:not(:disabled) {
+  background: #6b7280;
+  border-color: #6b7280;
+  color: #ffffff;
+}
+
+.task-btn-danger {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #d1d5db;
+}
+
+.task-btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #ffffff;
+}
+
+[class*="task-btn-"]:disabled {
+  opacity: 0.55;
+}
+
+html[data-theme="dark"] .task-btn-go {
+  background: #1f2937;
+  color: #ffffff;
+  border-color: #374151;
+}
+
+html[data-theme="dark"] .task-btn-go:hover:not(:disabled) {
+  background: #111827;
+  border-color: #4b5563;
+}
+
+html[data-theme="dark"] .task-btn-hold {
+  background: #1f2937;
+  color: #ffffff;
+  border-color: #374151;
+}
+
+html[data-theme="dark"] .task-btn-hold:hover:not(:disabled) {
+  background: #111827;
+  border-color: #4b5563;
+}
+
+html[data-theme="dark"] .task-btn-primary {
+  background: #1f2937;
+  color: #ffffff;
+  border-color: #374151;
+}
+
+html[data-theme="dark"] .task-btn-primary:hover:not(:disabled) {
+  background: #111827;
+  border-color: #4b5563;
+}
+
+html[data-theme="dark"] .task-btn-neutral {
+  background: #1f2937;
+  color: #ffffff;
+  border-color: #374151;
+}
+
+html[data-theme="dark"] .task-btn-neutral:hover:not(:disabled) {
+  background: #111827;
+  border-color: #4b5563;
+}
+
+html[data-theme="dark"] .task-btn-danger {
+  background: #1f2937;
+  color: #ffffff;
+  border-color: #374151;
+}
+
+html[data-theme="dark"] .task-btn-danger:hover:not(:disabled) {
+  background: #111827;
+  border-color: #4b5563;
+}

@@ -1,0 +1,6 @@
+{
+  "name": "worklog-desktop-runtime",
+  "version": "1.0.2",
+  "private": true,
+  "description": "Dependency boundary for the WorkLog Ultra Electron shell."
+}

@@ -1,0 +1,267 @@
+﻿Diagnose log at 2026-06-30T13:05:38Z
+
+AppPath: C:\Program Files\Git\mingw64\bin\git-credential-manager.exe
+InstallDir: C:\Program Files\Git\mingw64\bin\
+Version: 2.7.3+5fa7116896c82164996a609accd1c5ad90fe730a
+
+------------
+Diagnostic: Environment
+Skipped: False
+Success: True
+Exception: None
+Log:
+OSType: Windows
+OSVersion: 10.0 (build 22000)
+Reading environment variables... OK
+ Variables:
+SESSIONNAME=Console
+ProgramFiles(x86)=C:\Program Files (x86)
+MSYSTEM=MINGW64
+ProgramW6432=C:\Program Files
+PAGER=more.com
+PROCESSOR_IDENTIFIER=Intel64 Family 6 Model 158 Stepping 10, GenuineIntel
+TMP=C:\Users\shari\AppData\Local\Temp
+CODEX_INTERNAL_ORIGINATOR_OVERRIDE=codex_vscode
+DriverData=C:\Windows\System32\Drivers\DriverData
+PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.CPL
+COMPUTERNAME=RUKON
+ProgramData=C:\ProgramData
+VSCODE_CWD=C:\Users\shari\AppData\Local\Programs\Microsoft VS Code
+USERPROFILE=C:\Users\shari
+PROCESSOR_REVISION=9e0a
+TEMP=C:\Users\shari\AppData\Local\Temp
+FPS_BROWSER_APP_PROFILE_STRING=Internet Explorer
+FPS_BROWSER_USER_PROFILE_STRING=Default
+LOGONSERVER=\\RUKON
+TERM=xterm-256color
+USERNAME=shari
+SystemRoot=C:\Windows
+CHROME_CRASHPAD_PIPE_NAME=\\.\pipe\crashpad_18156_ULOHKPGXZHPQVUSX
+CODEX_THREAD_ID=019f17d8-1df9-7331-84c3-2ae47285bfdf
+PLINK_PROTOCOL=ssh
+LESS=
+OneDrive=C:\Users\shari\OneDrive
+PROCESSOR_ARCHITECTURE=AMD64
+PATH=C:/Program Files/Git/mingw64/libexec/git-core;C:\Program Files\Git\mingw64\bin;C:\Program Files\Git\usr\bin;C:\Users\shari\bin;C:\Users\shari\.codex\tmp\arg0\codex-arg0jmcdrG;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\nodejs\;C:\Program Files\Git\cmd;C:\Program Files\k6\;C:\Users\shari\AppData\Local\Microsoft\WindowsApps;C:\Users\shari\AppData\Roaming\npm;C:\Users\shari\AppData\Local\Programs\Microsoft VS Code\bin;c:\Users\shari\.vscode\extensions\openai.chatgpt-26.623.70822-win32-x64\bin\windows-x86_64
+CommonProgramFiles=C:\Program Files\Common Files
+windir=C:\Windows
+RUST_LOG=warn
+GIT_CONFIG_KEY_0=safe.directory
+LC_CTYPE=C.UTF-8
+HOMEPATH=\Users\shari
+GIT_CONFIG_VALUE_0=D:\Worklog-Ultra\Worklog-Ultra
+VSCODE_NLS_CONFIG={"userLocale":"en-us","osLocale":"en-us","resolvedLanguage":"en","defaultMessagesFile":"C:\\Users\\shari\\AppData\\Local\\Programs\\Microsoft VS Code\\7e7950df89\\resources\\app\\out\\nls.messages.json","locale":"en-us","availableLanguages":{}}
+VSCODE_HANDLES_UNCAUGHT_ERRORS=true
+ALLUSERSPROFILE=C:\ProgramData
+CommonProgramW6432=C:\Program Files\Common Files
+VSCODE_ESM_ENTRYPOINT=vs/workbench/api/node/extensionHostProcess
+GIT_EXEC_PATH=C:/Program Files/Git/mingw64/libexec/git-core
+GIT_CONFIG_COUNT=1
+CommonProgramFiles(x86)=C:\Program Files (x86)\Common Files
+HOMEDRIVE=C:
+VSCODE_PID=18156
+VSCODE_CRASH_REPORTER_PROCESS_TYPE=extensionHost
+GIT_TRACE2_PARENT_SID=a0f31bd8-3a19-4633-b611-51ba53b94883
+SystemDrive=C:
+NUMBER_OF_PROCESSORS=6
+OS=Windows_NT
+ProgramFiles=C:\Program Files
+ComSpec=C:\Windows\system32\cmd.exe
+USERDOMAIN_ROAMINGPROFILE=RUKON
+HOME=C:\Users\shari
+VSCODE_IPC_HOOK=\\.\pipe\8fbaeb55-1.126.0-main-sock
+CODEX_SANDBOX_NETWORK_DISABLED=1
+ELECTRON_RUN_AS_NODE=1
+PSModulePath=C:\Users\shari\Documents\WindowsPowerShell\Modules;C:\Program Files\WindowsPowerShell\Modules;C:\Windows\system32\WindowsPowerShell\v1.0\Modules
+TMPDIR=C:\Users\shari\AppData\Local\Temp
+APPDATA=C:\Users\shari\AppData\Roaming
+USERDOMAIN=RUKON
+PROCESSOR_LEVEL=6
+LOCALAPPDATA=C:\Users\shari\AppData\Local
+DEBUG=release
+GIT_PAGER=more.com
+COLORTERM=truecolor
+VSCODE_CODE_CACHE_PATH=C:\Users\shari\AppData\Roaming\Code\CachedData\7e7950df89d055b5a378379db9ee14290772148a
+PUBLIC=C:\Users\Public
+
+
+------------
+Diagnostic: File system
+Skipped: False
+Success: True
+Exception: None
+Log:
+Temporary directory is 'C:\Users\shari\AppData\Local\Temp\'...
+Checking basic file I/O...
+Writing to temporary file 'C:\Users\shari\AppData\Local\Temp\6c904e8799a9e1b5147c1d3f'... OK
+Reading from temporary file 'C:\Users\shari\AppData\Local\Temp\6c904e8799a9e1b5147c1d3f'... OK
+Deleting temporary file 'C:\Users\shari\AppData\Local\Temp\6c904e8799a9e1b5147c1d3f'... OK
+Testing IFileSystem instance...
+UserHomePath: C:\Users\CodexSandboxOffline
+UserDataDirectoryPath: C:\Users\CodexSandboxOffline\.gcm
+GetCurrentDirectory(): D:\Worklog-Ultra\Worklog-Ultra
+
+------------
+Diagnostic: Networking
+Skipped: False
+Success: False
+Exception:
+System.Net.Http.HttpRequestException: An error occurred while sending the request. ---> System.Net.WebException: The underlying connection was closed: An unexpected error occurred on a receive. ---> System.ComponentModel.Win32Exception: No credentials are available in the security package
+   at System.Net.SSPIWrapper.AcquireCredentialsHandle(SSPIInterface SecModule, String package, CredentialUse intent, SecureCredential2 scc)
+   at System.Net.Security.SecureChannel.AcquireCredentialsHandle(CredentialUse credUsage, SecureCredential2& secureCredential)
+   at System.Net.Security.SecureChannel.AcquireCredentialsHandle(CredentialUse credUsage, X509Certificate2 selectedCert, Flags flags)
+   at System.Net.Security.SecureChannel.AcquireClientCredentials(Byte[]& thumbPrint)
+   at System.Net.Security.SecureChannel.GenerateToken(Byte[] input, Int32 offset, Int32 count, Byte[]& output)
+   at System.Net.Security.SecureChannel.NextMessage(Byte[] incoming, Int32 offset, Int32 count)
+   at System.Net.Security.SslState.StartSendBlob(Byte[] incoming, Int32 count, AsyncProtocolRequest asyncRequest, Boolean renegotiation)
+   at System.Net.Security.SslState.ForceAuthentication(Boolean receiveFirst, Byte[] buffer, AsyncProtocolRequest asyncRequest, Boolean renegotiation)
+   at System.Net.Security.SslState.ProcessAuthentication(LazyAsyncResult lazyResult)
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state, Boolean preserveSyncCtx)
+   at System.Threading.ExecutionContext.Run(ExecutionContext executionContext, ContextCallback callback, Object state, Boolean preserveSyncCtx)
+   at System.Threading.ExecutionContext.Run(ExecutionContext executionContext, ContextCallback callback, Object state)
+   at System.Net.TlsStream.ProcessAuthentication(LazyAsyncResult result)
+   at System.Net.TlsStream.BeginWrite(Byte[] buffer, Int32 offset, Int32 size, AsyncCallback asyncCallback, Object asyncState)
+   at System.Net.ConnectStream.WriteHeaders(Boolean async)
+   --- End of inner exception stack trace ---
+   at System.Net.HttpWebRequest.EndGetResponse(IAsyncResult asyncResult)
+   at System.Net.Http.HttpClientHandler.GetResponseCallback(IAsyncResult ar)
+   --- End of inner exception stack trace ---
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)
+   at GitCredentialManager.Diagnostics.NetworkingDiagnostic.<RunInternalAsync>d__4.MoveNext()
+--- End of stack trace from previous location where exception was thrown ---
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)
+   at GitCredentialManager.Diagnostics.Diagnostic.<RunAsync>d__6.MoveNext()
+Log:
+Checking networking and HTTP stack...
+Creating HTTP client... OK
+IsNetworkAvailable: True
+Sending HEAD request to http://example.com...Sending HEAD request to https://example.com... OK
+
+------------
+Diagnostic: Git
+Skipped: False
+Success: True
+Exception: None
+Log:
+Getting Git version... OK
+Git version is '2.54.0.windows.1'
+Locating current repository...Git repository at 'D:/Worklog-Ultra/Worklog-Ultra/.git'
+ OK
+Listing all Git configuration... OK
+Git configuration:
+file:C:/Program Files/Git/etc/gitconfig	diff.astextplain.textconv=astextplain
+file:C:/Program Files/Git/etc/gitconfig	filter.lfs.clean=git-lfs clean -- %f
+file:C:/Program Files/Git/etc/gitconfig	filter.lfs.smudge=git-lfs smudge -- %f
+file:C:/Program Files/Git/etc/gitconfig	filter.lfs.process=git-lfs filter-process
+file:C:/Program Files/Git/etc/gitconfig	filter.lfs.required=true
+file:C:/Program Files/Git/etc/gitconfig	http.sslbackend=schannel
+file:C:/Program Files/Git/etc/gitconfig	core.autocrlf=true
+file:C:/Program Files/Git/etc/gitconfig	core.fscache=true
+file:C:/Program Files/Git/etc/gitconfig	core.symlinks=false
+file:C:/Program Files/Git/etc/gitconfig	pull.rebase=false
+file:C:/Program Files/Git/etc/gitconfig	credential.helper=manager
+file:C:/Program Files/Git/etc/gitconfig	credential.https://dev.azure.com.usehttppath=true
+file:C:/Program Files/Git/etc/gitconfig	init.defaultbranch=master
+file:C:/Users/shari/.gitconfig	safe.directory=*
+file:C:/Users/shari/.gitconfig	filter.lfs.process=git-lfs filter-process
+file:C:/Users/shari/.gitconfig	filter.lfs.required=true
+file:C:/Users/shari/.gitconfig	filter.lfs.clean=git-lfs clean -- %f
+file:C:/Users/shari/.gitconfig	filter.lfs.smudge=git-lfs smudge -- %f
+file:C:/Users/shari/.gitconfig	user.name=Mugnee IT Solutions
+file:C:/Users/shari/.gitconfig	user.email=mugnee.it@gmail.com
+file:.git/config	core.repositoryformatversion=0
+file:.git/config	core.filemode=false
+file:.git/config	core.bare=false
+file:.git/config	core.logallrefupdates=true
+file:.git/config	core.symlinks=false
+file:.git/config	core.ignorecase=true
+file:.git/config	remote.origin.url=https://github.com/sharifu101/Worklog-Ultra.git
+file:.git/config	remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*
+file:.git/config	branch.main.remote=origin
+file:.git/config	branch.main.merge=refs/heads/main
+file:.git/config	branch.codex-dashboard-polish.vscode-merge-base=origin/main
+file:.git/config	branch.codex-dashboard-polish.remote=origin
+file:.git/config	branch.codex-dashboard-polish.merge=refs/heads/codex-dashboard-polish
+command line:	safe.directory=D:\Worklog-Ultra\Worklog-Ultra
+
+
+------------
+Diagnostic: Credential storage
+Skipped: False
+Success: True
+Exception: None
+Log:
+ICredentialStore instance is of type: CredentialStore
+Writing test credential... OK
+Reading test credential... OK
+Deleting test credential... OK
+
+------------
+Diagnostic: Microsoft authentication (AAD/MSA)
+Skipped: False
+Success: False
+Exception:
+System.UnauthorizedAccessException: Access to the path 'C:\Users\shari\AppData\Local\.IdentityService' is denied.
+   at System.IO.__Error.WinIOError(Int32 errorCode, String maybeFullPath)
+   at System.IO.Directory.InternalCreateDirectory(String fullPath, String path, Object dirSecurityObj, Boolean checkHost)
+   at System.IO.Directory.InternalCreateDirectoryHelper(String path, Boolean checkHost)
+   at Microsoft.Identity.Client.Extensions.Msal.CrossPlatLock..ctor(String lockfilePath, Int32 lockFileRetryDelay, Int32 lockFileRetryCount)
+   at Microsoft.Identity.Client.Extensions.Msal.MsalCacheHelper.CreateCrossPlatLock(StorageCreationProperties storageCreationProperties)
+   at Microsoft.Identity.Client.Extensions.Msal.MsalCacheHelper.<CreateAsync>d__23.MoveNext()
+--- End of stack trace from previous location where exception was thrown ---
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)
+   at GitCredentialManager.Diagnostics.MicrosoftAuthenticationDiagnostic.<RunInternalAsync>d__1.MoveNext()
+--- End of stack trace from previous location where exception was thrown ---
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)
+   at GitCredentialManager.Diagnostics.Diagnostic.<RunAsync>d__6.MoveNext()
+Log:
+Broker is not enabled.
+Flow type is: Auto
+Gathering MSAL token cache data... OK
+CacheDirectory: C:\Users\shari\AppData\Local\.IdentityService
+CacheFileName: msal.cache
+CacheFilePath: C:\Users\shari\AppData\Local\.IdentityService\msal.cache
+Creating cache helper...
+------------
+Diagnostic: GitHub API
+Skipped: False
+Success: False
+Exception:
+System.Net.Http.HttpRequestException: An error occurred while sending the request. ---> System.Net.WebException: The underlying connection was closed: An unexpected error occurred on a receive. ---> System.ComponentModel.Win32Exception: No credentials are available in the security package
+   at System.Net.SSPIWrapper.AcquireCredentialsHandle(SSPIInterface SecModule, String package, CredentialUse intent, SecureCredential2 scc)
+   at System.Net.Security.SecureChannel.AcquireCredentialsHandle(CredentialUse credUsage, SecureCredential2& secureCredential)
+   at System.Net.Security.SecureChannel.AcquireCredentialsHandle(CredentialUse credUsage, X509Certificate2 selectedCert, Flags flags)
+   at System.Net.Security.SecureChannel.AcquireClientCredentials(Byte[]& thumbPrint)
+   at System.Net.Security.SecureChannel.GenerateToken(Byte[] input, Int32 offset, Int32 count, Byte[]& output)
+   at System.Net.Security.SecureChannel.NextMessage(Byte[] incoming, Int32 offset, Int32 count)
+   at System.Net.Security.SslState.StartSendBlob(Byte[] incoming, Int32 count, AsyncProtocolRequest asyncRequest, Boolean renegotiation)
+   at System.Net.Security.SslState.ForceAuthentication(Boolean receiveFirst, Byte[] buffer, AsyncProtocolRequest asyncRequest, Boolean renegotiation)
+   at System.Net.Security.SslState.ProcessAuthentication(LazyAsyncResult lazyResult)
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state, Boolean preserveSyncCtx)
+   at System.Threading.ExecutionContext.Run(ExecutionContext executionContext, ContextCallback callback, Object state, Boolean preserveSyncCtx)
+   at System.Threading.ExecutionContext.Run(ExecutionContext executionContext, ContextCallback callback, Object state)
+   at System.Net.TlsStream.ProcessAuthentication(LazyAsyncResult result)
+   at System.Net.TlsStream.BeginWrite(Byte[] buffer, Int32 offset, Int32 size, AsyncCallback asyncCallback, Object asyncState)
+   at System.Net.ConnectStream.WriteHeaders(Boolean async)
+   --- End of inner exception stack trace ---
+   at System.Net.HttpWebRequest.EndGetResponse(IAsyncResult asyncResult)
+   at System.Net.Http.HttpClientHandler.GetResponseCallback(IAsyncResult ar)
+   --- End of inner exception stack trace ---
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)
+   at GitHub.GitHubRestApi.<GetMetaInfoAsync>d__5.MoveNext()
+--- End of stack trace from previous location where exception was thrown ---
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)
+   at GitHub.Diagnostics.GitHubApiDiagnostic.<RunInternalAsync>d__2.MoveNext()
+--- End of stack trace from previous location where exception was thrown ---
+   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()
+   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)
+   at GitCredentialManager.Diagnostics.Diagnostic.<RunAsync>d__6.MoveNext()
+Log:
+Using 'https://github.com/' as API target.
+Querying '/meta' endpoint...

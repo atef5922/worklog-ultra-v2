@@ -1,0 +1,425 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  employee
+  hr
+  manager
+  admin
+}
+
+enum TaskStatus {
+  done
+  in_progress
+  pending
+}
+
+enum TaskActivityType {
+  completed
+  reopened
+}
+
+enum ReportEditRequestStatus {
+  pending
+  approved
+  rejected
+}
+
+enum AttendanceStatus {
+  present
+  late
+  half_day
+  absent
+  remote
+}
+
+enum ScreenshotUploadStatus {
+  pending
+  uploaded
+  failed
+}
+
+enum ScreenshotCaptureMode {
+  primary_display
+  all_displays
+  active_window
+}
+
+enum ScreenshotAuditAction {
+  viewed
+  downloaded
+  deleted
+}
+
+enum ReminderKind {
+  attendance_morning
+  plan_morning
+  report_evening
+}
+
+model User {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email              String               @unique
+  passwordHash       String               @map("password_hash")
+  role               UserRole
+  name               String
+  designation        String?
+  departmentId       String?              @map("department_id") @db.Uuid
+  avatarUrl          String?              @map("avatar_url")
+  location           String?
+  phone              String?
+  monthlySalary      Decimal?             @map("monthly_salary") @db.Decimal(12, 2)
+  expectedDailyHours Decimal?             @default(8) @map("expected_daily_hours") @db.Decimal(4, 2)
+  extraAccess        String[]             @default([]) @map("extra_access")
+  isActive           Boolean              @default(true) @map("is_active")
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  department         Department?          @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  taskAssignments    DailyTask[]          @relation("TaskAssigner")
+  taskOwner          DailyTask[]          @relation("TaskOwner")
+  notices            HrNotice[]
+  noticeDismissals   HrNoticeDismissal[]
+  reportEditReviews  ReportEditRequest[]   @relation("ReportEditReviewer")
+  reportEditRequests ReportEditRequest[]   @relation("ReportEditRequester")
+  receivedMessages   WorkspaceMessage[]    @relation("WorkspaceMessageRecipient")
+  reminderDispatches ReminderDispatch[]
+  resetTokens        PasswordResetToken[]
+  sentMessages       WorkspaceMessage[]    @relation("WorkspaceMessageSender")
+  sessions           UserSession[]
+  attendanceRecords  AttendanceRecord[]
+  devices            Device[]
+  screenshots        Screenshot[]
+  screenshotAccessLogs ScreenshotAccessLog[]
+  taskActivityEvents TaskActivityEvent[] @relation("TaskActivityActor")
+
+  @@map("users")
+}
+
+model Department {
+  id        String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String                   @unique
+  createdAt DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  users       User[]
+  tasks       DailyTask[]
+  notices     HrNotice[]
+  signups     SignupVerificationCode[]
+  screenshots Screenshot[]
+
+  @@map("departments")
+}
+
+model SignupVerificationCode {
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String
+  role         UserRole
+  name         String
+  departmentId String?     @map("department_id") @db.Uuid
+  designation  String?
+  passwordHash String      @map("password_hash")
+  codeHash     String      @map("code_hash")
+  attempts     Int         @default(0)
+  expiresAt    DateTime    @map("expires_at") @db.Timestamptz(6)
+  verifiedAt   DateTime?   @map("verified_at") @db.Timestamptz(6)
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([email, role, createdAt])
+  @@map("signup_verification_codes")
+}
+
+model DailyTask {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String            @map("user_id") @db.Uuid
+  departmentId    String            @map("department_id") @db.Uuid
+  planDate        DateTime          @map("plan_date") @db.Date
+  taskTitle       String            @map("task_title")
+  taskDescription String?           @map("task_description")
+  priority        String            @default("normal")
+  assignedBy      String?           @map("assigned_by") @db.Uuid
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  department      Department        @relation(fields: [departmentId], references: [id])
+  assigner        User?             @relation("TaskAssigner", fields: [assignedBy], references: [id])
+  user            User              @relation("TaskOwner", fields: [userId], references: [id], onDelete: Cascade)
+  editRequests    ReportEditRequest[]
+  updates         DailyTaskUpdate[]
+  activityEvents  TaskActivityEvent[]
+
+  @@index([userId, planDate])
+  @@map("daily_tasks")
+}
+
+model DailyTaskUpdate {
+  id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dailyTaskId       String     @map("daily_task_id") @db.Uuid
+  reportDate        DateTime   @map("report_date") @db.Date
+  status            TaskStatus
+  note              String?
+  completionPercent Int        @default(0) @map("completion_percent")
+  trackedMinutes    Int        @default(0) @map("tracked_minutes")
+  actualStart       DateTime?  @map("actual_start") @db.Timestamptz(6)
+  actualEnd         DateTime?  @map("actual_end") @db.Timestamptz(6)
+  difficultyLevel   String?    @map("difficulty_level")
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  dailyTask         DailyTask  @relation(fields: [dailyTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([dailyTaskId, reportDate])
+  @@map("daily_task_updates")
+}
+
+model TaskActivityEvent {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dailyTaskId    String           @map("daily_task_id") @db.Uuid
+  actorId        String?          @map("actor_id") @db.Uuid
+  eventType      TaskActivityType @map("event_type")
+  cycle          Int
+  reason         String?
+  note           String?
+  reportDate     DateTime         @map("report_date") @db.Date
+  trackedMinutes Int              @default(0) @map("tracked_minutes")
+  actualStart    DateTime?        @map("actual_start") @db.Timestamptz(6)
+  actualEnd      DateTime?        @map("actual_end") @db.Timestamptz(6)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  dailyTask      DailyTask        @relation(fields: [dailyTaskId], references: [id], onDelete: Cascade)
+  actor          User?            @relation("TaskActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@unique([dailyTaskId, eventType, cycle])
+  @@index([dailyTaskId, createdAt])
+  @@map("task_activity_events")
+}
+
+model ReportEditRequest {
+  id            String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dailyTaskId   String                  @map("daily_task_id") @db.Uuid
+  requestedById String                  @map("requested_by_id") @db.Uuid
+  reviewerId    String?                 @map("reviewer_id") @db.Uuid
+  reason        String
+  status        ReportEditRequestStatus @default(pending)
+  reviewNote    String?                 @map("review_note")
+  reviewedAt    DateTime?               @map("reviewed_at") @db.Timestamptz(6)
+  createdAt     DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  dailyTask     DailyTask               @relation(fields: [dailyTaskId], references: [id], onDelete: Cascade)
+  requestedBy   User                    @relation("ReportEditRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  reviewer      User?                   @relation("ReportEditReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([dailyTaskId, createdAt])
+  @@index([requestedById, createdAt])
+  @@index([status, createdAt])
+  @@map("report_edit_requests")
+}
+
+model HrNotice {
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title              String
+  body               String
+  authorId           String?              @map("author_id") @db.Uuid
+  targetDepartmentId String?              @map("target_department_id") @db.Uuid
+  isActive           Boolean              @default(true) @map("is_active")
+  publishedAt        DateTime?            @map("published_at") @db.Timestamptz(6)
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  author             User?                @relation(fields: [authorId], references: [id])
+  targetDepartment   Department?          @relation(fields: [targetDepartmentId], references: [id])
+  dismissals         HrNoticeDismissal[]
+
+  @@map("hr_notices")
+}
+
+model HrNoticeDismissal {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  noticeId  String   @map("notice_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  notice    HrNotice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([noticeId, userId])
+  @@map("hr_notice_dismissals")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email     String
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  userId    String?   @map("user_id") @db.Uuid
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email, createdAt])
+  @@map("password_reset_tokens")
+}
+
+model UserSession {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  sessionId String    @unique @map("session_id")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("user_sessions")
+}
+
+model AttendanceRecord {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  attendanceDate DateTime         @map("attendance_date") @db.Date
+  status         AttendanceStatus @default(present)
+  checkInAt      DateTime?        @map("check_in_at") @db.Timestamptz(6)
+  checkOutAt     DateTime?        @map("check_out_at") @db.Timestamptz(6)
+  breakMinutes   Int              @default(0) @map("break_minutes")
+  workingMinutes Int              @default(0) @map("working_minutes")
+  note           String?
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  screenshots    Screenshot[]
+
+  @@unique([userId, attendanceDate])
+  @@index([attendanceDate, status])
+  @@map("attendance_records")
+}
+
+model WorkspaceMessage {
+  id          String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  senderId    String                     @map("sender_id") @db.Uuid
+  recipientId String                     @map("recipient_id") @db.Uuid
+  subject     String?
+  body        String
+  readAt      DateTime?                  @map("read_at") @db.Timestamptz(6)
+  createdAt   DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  attachments WorkspaceMessageAttachment[]
+  recipient   User                       @relation("WorkspaceMessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  sender      User                       @relation("WorkspaceMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, createdAt])
+  @@index([senderId, createdAt])
+  @@map("workspace_messages")
+}
+
+model WorkspaceMessageAttachment {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  messageId   String           @map("message_id") @db.Uuid
+  fileName    String           @map("file_name")
+  fileUrl     String           @map("file_url")
+  fileType    String           @map("file_type")
+  fileSize    Int              @map("file_size")
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  message     WorkspaceMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId, createdAt])
+  @@map("workspace_message_attachments")
+}
+
+/// A single desktop install. Screenshots are attributed to the machine that
+/// produced them so a user running two devices stays distinguishable, and so a
+/// stolen agent token cannot silently masquerade as an existing install.
+model Device {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String       @map("user_id") @db.Uuid
+  /// Stable per-install identifier generated by the desktop agent.
+  deviceKey   String       @map("device_key")
+  platform    String
+  hostname    String?
+  appVersion  String?      @map("app_version")
+  lastSeenAt  DateTime?    @map("last_seen_at") @db.Timestamptz(6)
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  screenshots Screenshot[]
+
+  @@unique([userId, deviceKey])
+  @@index([userId, lastSeenAt])
+  @@map("devices")
+}
+
+/// Metadata for one captured screen. The image itself lives in storage under
+/// `storageKey`; nothing here holds binary data.
+///
+/// `departmentId` is denormalised at capture time on purpose: a screenshot
+/// belongs to the team the employee was in when it was taken, so moving someone
+/// between departments never retroactively changes who was allowed to see it.
+model Screenshot {
+  id                 String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId             String                 @map("user_id") @db.Uuid
+  departmentId       String?                @map("department_id") @db.Uuid
+  /// The work session (one attendance row per user per day) this belongs to.
+  attendanceRecordId String?                @map("attendance_record_id") @db.Uuid
+  deviceId           String?                @map("device_id") @db.Uuid
+  /// Opaque storage path. Never user-controlled — always built server side.
+  storageKey         String                 @map("storage_key")
+  /// Idempotency key minted by the desktop agent before the first upload try,
+  /// so a retried upload can never create a second logical screenshot.
+  clientCaptureId    String                 @map("client_capture_id")
+  capturedAt         DateTime               @map("captured_at") @db.Timestamptz(6)
+  uploadedAt         DateTime?              @map("uploaded_at") @db.Timestamptz(6)
+  width              Int                    @default(0)
+  height             Int                    @default(0)
+  fileSize           Int                    @default(0) @map("file_size")
+  mimeType           String                 @default("image/jpeg") @map("mime_type")
+  checksum           String?
+  captureMode        ScreenshotCaptureMode  @default(primary_display) @map("capture_mode")
+  uploadStatus       ScreenshotUploadStatus @default(pending) @map("upload_status")
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user               User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department         Department?            @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  attendanceRecord   AttendanceRecord?      @relation(fields: [attendanceRecordId], references: [id], onDelete: SetNull)
+  device             Device?                @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  accessLogs         ScreenshotAccessLog[]
+
+  /// Makes upload retries idempotent.
+  @@unique([userId, clientCaptureId])
+  /// Gallery's primary read path: one employee, newest first.
+  @@index([userId, capturedAt])
+  /// Team Head gallery: everyone in a department, newest first.
+  @@index([departmentId, capturedAt])
+  @@index([attendanceRecordId])
+  /// Lets the retention job find expired rows without a full scan.
+  @@index([uploadStatus, capturedAt])
+  @@map("screenshots")
+}
+
+/// Who looked at whose screenshot. Monitoring data is sensitive enough that
+/// reads are themselves auditable events.
+model ScreenshotAccessLog {
+  id           String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Nullable on purpose: a `deleted` log entry documents the deletion
+  /// itself, so it must outlive the screenshot row it points at. `SetNull`
+  /// (not `Cascade`) is what makes that possible — cascading here would
+  /// erase the very record of the deletion the moment it happens.
+  screenshotId String?               @map("screenshot_id") @db.Uuid
+  viewerUserId String                @map("viewer_user_id") @db.Uuid
+  action       ScreenshotAuditAction
+  ipAddress    String?               @map("ip_address")
+  userAgent    String?               @map("user_agent")
+  createdAt    DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  screenshot   Screenshot?           @relation(fields: [screenshotId], references: [id], onDelete: SetNull)
+  viewer       User                  @relation(fields: [viewerUserId], references: [id], onDelete: Cascade)
+
+  @@index([screenshotId, createdAt])
+  @@index([viewerUserId, createdAt])
+  @@map("screenshot_access_logs")
+}
+
+model ReminderDispatch {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String       @map("user_id") @db.Uuid
+  reminderDate  DateTime     @map("reminder_date") @db.Date
+  kind          ReminderKind
+  sentAt        DateTime     @default(now()) @map("sent_at") @db.Timestamptz(6)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, reminderDate, kind])
+  @@index([reminderDate, kind])
+  @@map("reminder_dispatches")
+}

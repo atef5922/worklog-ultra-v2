@@ -1,0 +1,11 @@
+{
+  "name": "worklog-ultra-desktop",
+  "version": "0.3.6",
+  "private": true,
+  "description": "WorkLog Ultra desktop application for team work planning, reporting, attendance, and time tracking.",
+  "author": "WorkLog Ultra",
+  "main": "main.cjs",
+  "dependencies": {
+    "worklog-desktop-runtime": "file:runtime"
+  }
+}
