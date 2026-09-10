@@ -100,18 +100,20 @@ export function PlanForm({
   assignableUsers = [],
   currentUserId,
   clearDraftOnMount = false,
+  compact = false,
   fitViewport = false,
   onSaved,
 }: {
   departments: Department[];
   initialTasks: Omit<Task, "clientId">[];
-  suggestions: Suggestion[];
+  suggestions?: Suggestion[];
   userDepartmentId?: string | null;
   isTenderDepartment?: boolean;
   role: "employee" | "hr" | "manager" | "admin";
   assignableUsers: AssignableUser[];
   currentUserId: string;
   clearDraftOnMount?: boolean;
+  compact?: boolean;
   /**
    * Fill the parent's leftover height and keep only the task list scrollable.
    * Off in the Add Task modal, where the form must flow at its natural height
@@ -353,6 +355,7 @@ export function PlanForm({
       <div
         className={cn(
           "dashboard-accent accent-teal rounded-[1.25rem] border border-[var(--panel-border)] bg-[var(--panel)] p-2.5 shadow-[var(--shadow)]",
+          compact && "rounded-xl p-2 shadow-none",
           // Capped, not shrink-0: expanded it holds six cards and was taking the
           // whole page, which squeezed the task list into a strip that scrolled
           // at a single task. Collapsed the cap never binds.
@@ -376,7 +379,7 @@ export function PlanForm({
           title={`Suggestions for ${activeDepartmentName}`}
           tone="bg-teal-500/10 text-teal-500"
         />
-        <p className="mt-1 shrink-0 text-[0.75rem] leading-4 text-[var(--muted-foreground)]">
+        <p className={cn("mt-1 shrink-0 text-[0.75rem] leading-4 text-[var(--muted-foreground)]", compact && "text-[0.7rem]")}>
           Smart ideas for your department. Open it whenever you want a quick starting point.
         </p>
         {showSuggestions ? (
@@ -438,6 +441,7 @@ export function PlanForm({
       <div
         className={cn(
           "dashboard-accent accent-indigo rounded-[1.25rem] border border-[var(--panel-border)] bg-[var(--panel)] p-2.5 shadow-[var(--shadow)]",
+          compact && "rounded-none border-0 bg-transparent p-0 shadow-none",
           fitViewport && "flex min-h-0 flex-col min-[900px]:flex-1",
         )}
         data-dashboard-panel
@@ -454,14 +458,17 @@ export function PlanForm({
             </Button>
           }
           icon={ListChecks}
-          title="Today's Task List"
+          title={compact ? "Task details" : "Today's Task List"}
         />
-        <p className="mt-1 shrink-0 text-[0.75rem] leading-4 text-[var(--muted-foreground)]">
-          Add today&apos;s tasks here first. After saving, start the timer from the dashboard.
-        </p>
+        {!compact ? (
+          <p className="mt-1 shrink-0 text-[0.75rem] leading-4 text-[var(--muted-foreground)]">
+            Add today&apos;s tasks here first. After saving, start the timer from the dashboard.
+          </p>
+        ) : null}
         <div
           className={cn(
             "mt-2 space-y-2",
+            compact && "mt-2",
             // The task list is the one part that grows without bound, so it is
             // the only thing allowed to scroll.
             fitViewport && "dashboard-scroll-area min-h-0 flex-1 pr-0.5",
@@ -470,9 +477,12 @@ export function PlanForm({
           {(tasks ?? []).map((task, index) => (
             <div
               key={task.clientId}
-              className="rounded-xl border border-[var(--panel-border)] bg-[var(--panel-muted)] p-2.5 transition-colors hover:border-[#4f5ef7]/30"
+              className={cn(
+                "rounded-xl border border-[var(--panel-border)] bg-[var(--panel-muted)] p-2.5 transition-colors hover:border-[#4f5ef7]/30",
+                compact && "p-2",
+              )}
             >
-              <div className="mb-2 flex items-center justify-between gap-3">
+              <div className={cn("mb-2 flex items-center justify-between gap-3", compact && "mb-1.5")}>
                 <div className="flex min-w-0 items-center gap-2">
                   <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[#4f5ef7]/10 font-mono text-[0.625rem] font-bold tabular-nums text-[#4f5ef7]">
                     {String(index + 1).padStart(2, "0")}
@@ -500,17 +510,18 @@ export function PlanForm({
                   height it did not need. */}
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                 <div>
-                  <Label>Task Title</Label>
+                  <Label className={cn(compact && "mb-1 text-xs")}>Task Title</Label>
                   <Input
+                    className={cn(compact && "h-9 text-xs")}
                     onChange={(event) => updateTask(index, "taskTitle", event.target.value)}
                     placeholder="Enter task title"
                     value={task.taskTitle}
                   />
                 </div>
                 <div>
-                  <Label>Department</Label>
+                  <Label className={cn(compact && "mb-1 text-xs")}>Department</Label>
                   <Select value={task.departmentId} onValueChange={(value) => updateTask(index, "departmentId", value)}>
-                    <SelectTrigger>
+                    <SelectTrigger className={cn(compact && "h-9 text-xs")}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -524,9 +535,9 @@ export function PlanForm({
                   </Select>
                 </div>
                 <div>
-                  <Label>Priority</Label>
+                  <Label className={cn(compact && "mb-1 text-xs")}>Priority</Label>
                   <Select value={task.priority} onValueChange={(value) => updateTask(index, "priority", value)}>
-                    <SelectTrigger>
+                    <SelectTrigger className={cn(compact && "h-9 text-xs")}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -540,9 +551,10 @@ export function PlanForm({
                 </div>
               </div>
 
-              <div className="mt-2">
-                <Label>Description</Label>
+              <div className={cn("mt-2", compact && "mt-1.5")}>
+                <Label className={cn(compact && "mb-1 text-xs")}>Description</Label>
                 <Textarea
+                  className={cn(compact && "min-h-[3.25rem] resize-none py-2 text-xs")}
                   onChange={(event) =>
                     updateTask(
                       index,
@@ -564,6 +576,7 @@ export function PlanForm({
         <Button
           className={cn(
             "button-force-white mt-2 h-10 w-full rounded-xl bg-[linear-gradient(135deg,#4f5ef7_0%,#6d5df6_55%,#8b5cf6_100%)] text-sm shadow-[0_14px_30px_rgba(79,94,247,0.28)] transition hover:brightness-[1.06] disabled:brightness-100",
+            compact && "h-9 text-xs",
             fitViewport && "shrink-0",
           )}
           disabled={loading}
