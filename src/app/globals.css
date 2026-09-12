@@ -13,8 +13,10 @@
    * is 175px at the reference viewport; collapsed is 60px, which holds a 20px
    * icon with room to centre it.
    */
-  --sidebar-width: 12.1528rem;
+  --sidebar-width-expanded: 12.1528rem;
+  --sidebar-width: var(--sidebar-width-expanded);
   --sidebar-width-collapsed: 4.1667rem;
+  --sidebar-visual-width: var(--sidebar-width);
   --topbar-hairline: inset 0 -1px 0 rgba(223, 232, 247, 0.08);
   --background: #eef3fb;
   --foreground: #162235;
@@ -792,30 +794,73 @@ html[data-sidebar-collapsed="true"] {
   --sidebar-width: var(--sidebar-width-collapsed);
 }
 
-html[data-sidebar-collapsed="true"] .dashboard-sidebar [data-sidebar-label] {
-  display: none;
+html[data-sidebar-peek="true"] {
+  --sidebar-width: var(--sidebar-width-expanded);
+  --sidebar-visual-width: var(--sidebar-width-expanded);
 }
 
-/* With the labels gone the icons have a row to themselves, so centre them. */
-html[data-sidebar-collapsed="true"] .dashboard-sidebar [data-sidebar-row] {
-  justify-content: center;
-  gap: 0;
-  padding-left: 0.5rem;
-  padding-right: 0.5rem;
+.dashboard-sidebar [data-sidebar-label] {
+  display: block;
+  max-width: 10rem;
+  overflow: hidden;
+  opacity: 1;
+  white-space: nowrap;
+  transition:
+    max-width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.2s ease 0.07s,
+    visibility 0s linear;
+}
+
+.dashboard-sidebar [data-sidebar-row] {
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease;
+}
+
+html[data-sidebar-collapsed="true"]:not([data-sidebar-peek="true"]) .dashboard-sidebar [data-sidebar-label] {
+  max-width: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    max-width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 0.16s ease,
+    visibility 0s linear 0.28s;
 }
 
 /* The unread dot has no end-of-row left to sit at, so it rides the icon. */
-html[data-sidebar-collapsed="true"] .dashboard-sidebar [data-sidebar-badge] {
+html[data-sidebar-collapsed="true"]:not([data-sidebar-peek="true"]) .dashboard-sidebar [data-sidebar-badge] {
   position: absolute;
   right: 0.5rem;
   top: 0.375rem;
   margin-left: 0;
 }
 
-html[data-sidebar-collapsed="true"] .dashboard-sidebar [data-sidebar-brand] {
-  justify-content: center;
-  padding-left: 0;
-  padding-right: 0;
+.dashboard-sidebar [data-sidebar-brand] {
+  transition:
+    padding-left 0.34s cubic-bezier(0.4, 0, 0.2, 1),
+    padding-right 0.34s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+html[data-sidebar-collapsed="true"]:not([data-sidebar-peek="true"]) .dashboard-sidebar [data-sidebar-brand] {
+  justify-content: flex-start;
+  padding-left: calc((var(--sidebar-width-collapsed) - 2rem) / 2);
+  padding-right: calc((var(--sidebar-width-collapsed) - 2rem) / 2);
+}
+
+.dashboard-sidebar-shell {
+  transition: width 0.34s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: width;
+}
+
+.dashboard-sidebar {
+  transition:
+    width 0.34s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.28s ease;
+  will-change: width;
+}
+
+html[data-sidebar-peek="true"] .dashboard-sidebar {
+  box-shadow: 16px 0 32px rgba(3, 8, 18, 0.2);
 }
 
 /*
@@ -831,7 +876,10 @@ html[data-sidebar-collapsed="true"] .dashboard-sidebar [data-sidebar-brand] {
  */
 .dashboard-sidebar-toggle {
   position: absolute;
-  right: 0;
+  /* Follow the shared layout edge while the shell and rail expand together,
+     keeping the control centred on the sidebar/content seam throughout the
+     hover and pinned-state transitions. */
+  left: var(--sidebar-visual-width);
   top: calc(var(--topbar-height) / 2);
   z-index: 1;
   display: inline-flex;
@@ -846,8 +894,9 @@ html[data-sidebar-collapsed="true"] .dashboard-sidebar [data-sidebar-brand] {
   box-shadow:
     0 8px 18px rgba(3, 8, 18, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  transform: translate(50%, -50%);
+  transform: translate(-50%, -50%);
   transition:
+    left 0.34s cubic-bezier(0.4, 0, 0.2, 1),
     background 0.2s ease,
     border-color 0.2s ease,
     color 0.2s ease,
@@ -862,11 +911,11 @@ html[data-sidebar-collapsed="true"] .dashboard-sidebar [data-sidebar-brand] {
   box-shadow:
     0 10px 22px rgba(3, 8, 18, 0.58),
     inset 0 1px 0 rgba(255, 255, 255, 0.24);
-  transform: translate(50%, -50%) scale(1.08);
+  transform: translate(-50%, -50%) scale(1.06);
 }
 
 .dashboard-sidebar-toggle:active {
-  transform: translate(50%, -50%) scale(0.96);
+  transform: translate(-50%, -50%) scale(0.96);
 }
 
 .dashboard-sidebar-toggle:focus-visible {
@@ -884,6 +933,24 @@ html[data-sidebar-collapsed="true"] .dashboard-sidebar [data-sidebar-toggle-icon
 
 html[data-sidebar-collapsed="true"] .dashboard-sidebar [data-sidebar-toggle-icon="collapse"] {
   display: none;
+}
+
+html[data-sidebar-peek="true"] .dashboard-sidebar [data-sidebar-toggle-icon="expand"] {
+  display: none;
+}
+
+html[data-sidebar-peek="true"] .dashboard-sidebar [data-sidebar-toggle-icon="collapse"] {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-sidebar-shell,
+  .dashboard-sidebar,
+  .dashboard-sidebar-toggle,
+  .dashboard-sidebar [data-sidebar-label],
+  .dashboard-sidebar [data-sidebar-row] {
+    transition-duration: 0.01ms;
+  }
 }
 
 .dashboard-topbar .text-\[var\(--foreground\)\],

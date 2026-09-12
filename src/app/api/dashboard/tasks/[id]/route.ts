@@ -298,11 +298,13 @@ export async function POST(
         },
       });
 
-      const completedCycles = await transaction.taskActivityEvent.count({
+      const latestCompletionEvent = await transaction.taskActivityEvent.findFirst({
         where: {
           dailyTaskId: task.id,
           eventType: "completed",
         },
+        orderBy: [{ cycle: "desc" }, { createdAt: "desc" }],
+        select: { cycle: true },
       });
 
       await transaction.taskActivityEvent.create({
@@ -310,7 +312,10 @@ export async function POST(
           dailyTaskId: task.id,
           actorId: user.id,
           eventType: "completed",
-          cycle: completedCycles + 1,
+          // Legacy/backfilled histories are not guaranteed to begin at cycle
+          // one. Counting rows can therefore reuse an existing cycle number
+          // and violate the unique activity-event constraint.
+          cycle: (latestCompletionEvent?.cycle ?? 0) + 1,
           note: completionNote || null,
           reportDate,
           trackedMinutes,

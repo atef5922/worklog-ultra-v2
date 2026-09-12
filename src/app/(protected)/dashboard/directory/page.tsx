@@ -21,15 +21,15 @@ export default async function DirectoryPage({
   const data = await getWorkspaceDirectoryData({
     role: user.role,
     departmentId: user.departmentId,
-    scopeToDepartment: user.role === "employee",
+    scopeToDepartment: user.role === "manager" || user.role === "employee",
   });
 
   return (
     <DirectoryCenter
-      canSwitchDepartment={user.role === "manager" || user.role === "admin"}
+      canSwitchDepartment={user.role === "admin"}
       departments={data.departments ?? []}
       initialDepartmentId={
-        user.role === "manager" || user.role === "admin"
+        user.role === "admin"
           ? params?.departmentId ?? "all"
           : data.departments[0]?.id
       }

@@ -18,7 +18,7 @@ interface Window {
     resumeTracking(): Promise<WorklogTrackerStatus>;
     getTrackerStatus(): Promise<WorklogTrackerStatus>;
     onTrackerStatus(callback: (status: WorklogTrackerStatus) => void): () => void;
-    onAppQuit(callback: () => void): () => void;
+    onAppQuit(callback: () => void | Promise<void>): () => void;
     saveCredentials(email: string, password: string): Promise<{ ok: boolean }>;
     loadCredentials(): Promise<{ email: string; password: string } | null>;
     clearCredentials(): Promise<{ ok: boolean }>;

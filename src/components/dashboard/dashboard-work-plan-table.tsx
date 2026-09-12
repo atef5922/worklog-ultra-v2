@@ -846,7 +846,12 @@ export function DashboardWorkPlanSection({
             (seed.actualEnd ? String(seed.actualEnd) : ""),
         }),
       },
-    );
+    ).catch(() => null);
+    if (!response) {
+      setSavingCompletion(false);
+      toast.error("Could not complete task. Check your connection and try again.");
+      return;
+    }
     const result = parseResponse(await response.text());
     setSavingCompletion(false);
 

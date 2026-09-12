@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import Link from "next/link";
 import { Bell, ChevronDown, ChevronLeft, Clock3, HelpCircle, LogOut, MessageSquareMore, Settings } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
@@ -110,7 +109,7 @@ export function DashboardHeader({
   const [notificationsHydrated, setNotificationsHydrated] = useState(false);
   const [currentClock, setCurrentClock] = useState({
     time: "",
-    seconds: "",
+    period: "",
     label: "",
     date: "",
   });
@@ -121,12 +120,10 @@ export function DashboardHeader({
   const bellRef = useRef<HTMLDivElement | null>(null);
   const clockRef = useRef({
     time: "",
-    seconds: "",
+    period: "",
     label: "",
     date: "",
   });
-  const [clockHour = "--", clockMinute = "--", clockSecond = "--"] = (currentClock.time || "--:--:--").split(":");
-  const clockLeadingTime = `${clockHour}:${clockMinute}:`;
   const profileInitial = user.name.trim().charAt(0).toUpperCase() || "U";
   const visibleUnreadMessages =
     pathname === "/dashboard/messages" ? 0 : unreadMessages;
@@ -139,20 +136,18 @@ export function DashboardHeader({
         timeZone: "Asia/Dhaka",
         hour: "numeric",
         minute: "2-digit",
-        second: "2-digit",
         hour12: true,
       }).formatToParts(now);
       const hour = timeParts.find((part) => part.type === "hour")?.value ?? "";
       const minute = timeParts.find((part) => part.type === "minute")?.value ?? "00";
-      const second = timeParts.find((part) => part.type === "second")?.value ?? "00";
       const dayPeriod = timeParts.find((part) => part.type === "dayPeriod")?.value ?? "";
 
       const newClock = {
-        // Pad the hour so the string is always 8 characters. A 1-digit hour used
+        // Pad the hour so the string is always 5 characters. A 1-digit hour used
         // to make the clock narrower, which opened a gap next to it that moved
         // every time the hour rolled over.
-        time: `${hour.padStart(2, "0")}:${minute}:${second}`,
-        seconds: dayPeriod,
+        time: `${hour.padStart(2, "0")}:${minute}`,
+        period: dayPeriod,
         label: new Intl.DateTimeFormat("en-BD", {
           timeZone: "Asia/Dhaka",
           weekday: "short",
@@ -168,7 +163,7 @@ export function DashboardHeader({
       // Only update state if the time actually changed
       if (
         clockRef.current.time !== newClock.time ||
-        clockRef.current.seconds !== newClock.seconds ||
+        clockRef.current.period !== newClock.period ||
         clockRef.current.label !== newClock.label ||
         clockRef.current.date !== newClock.date
       ) {
@@ -494,21 +489,10 @@ export function DashboardHeader({
           <Clock3 className="h-4 w-4 shrink-0 text-[var(--muted-foreground)]" />
           <div className="flex items-baseline gap-1.5 font-mono tabular-nums lg:gap-2">
             <span className="inline-flex items-center text-[1.25rem] font-extrabold leading-none tracking-[0.08em] text-[var(--foreground)] xl:text-[1.5rem] 2xl:text-[1.75rem]">
-              <span>{clockLeadingTime}</span>
-              <span className="relative inline-flex h-[1.1em] w-[2.4ch] overflow-hidden">
-                <motion.span
-                  animate={{ y: 0, opacity: 1 }}
-                  className="absolute inset-0 inline-flex items-center justify-start"
-                  initial={{ y: 10, opacity: 0 }}
-                  key={clockSecond}
-                  transition={{ duration: 0.22, ease: "easeOut" }}
-                >
-                  {clockSecond}
-                </motion.span>
-              </span>
+              {currentClock.time || "--:--"}
             </span>
             <span className="text-[0.9rem] font-bold leading-none tracking-[0.08em] text-[#4f5ef7] 2xl:text-[1.05rem]">
-              {currentClock.seconds}
+              {currentClock.period}
             </span>
             <span
               aria-hidden

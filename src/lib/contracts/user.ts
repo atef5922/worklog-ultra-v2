@@ -53,12 +53,29 @@ export type SessionUserResponse = {
 
 export type DashboardAttendanceSnapshot = {
   status: "present" | "late" | "half_day" | "absent" | "remote";
+  attendanceDate: string;
   note: string;
   breakMinutes: number;
+  legacyBreakMinutes: number;
   checkInAt: string | null;
   checkOutAt: string | null;
+  active: boolean;
+  onBreak: boolean;
+  currentSessionStartedAt: string | null;
+  currentBreakStartedAt: string | null;
+  workSessions: Array<{
+    id: string;
+    startedAt: string;
+    endedAt: string | null;
+    endReason: string | null;
+  }>;
+  breakSessions: Array<{
+    id: string;
+    startedAt: string;
+    endedAt: string | null;
+    endReason: string | null;
+  }>;
 };
-
 export type DashboardSidebarUser = {
   name: string;
   role: AppRole;

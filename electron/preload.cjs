@@ -13,7 +13,11 @@ contextBridge.exposeInMainWorld("worklogDesktop", {
     return () => ipcRenderer.removeListener("screenshot:status", listener);
   },
   onAppQuit: (callback) => {
-    const listener = () => callback();
+    const listener = () => {
+      Promise.resolve()
+        .then(callback)
+        .finally(() => ipcRenderer.send("app:quit-ready"));
+    };
     ipcRenderer.on("app:quit", listener);
     return () => ipcRenderer.removeListener("app:quit", listener);
   },

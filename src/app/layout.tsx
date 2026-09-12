@@ -28,6 +28,7 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${manrope.variable} h-full antialiased`}
+      data-sidebar-collapsed="true"
       data-theme="light"
       suppressHydrationWarning
     >

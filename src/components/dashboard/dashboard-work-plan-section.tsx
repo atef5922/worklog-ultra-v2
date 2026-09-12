@@ -647,8 +647,13 @@ export function DashboardWorkPlanSection({
         actualStart: snapshot?.actualStart || completingTask.updates[0]?.actualStart || "",
         actualEnd: snapshot?.actualEnd || completingTask.updates[0]?.actualEnd || "",
       }),
-    });
+    }).catch(() => null);
 
+    if (!response) {
+      setSavingCompletion(false);
+      toast.error("Could not complete task. Check your connection and try again.");
+      return;
+    }
     const result = parseResponse(await response.text());
     setSavingCompletion(false);
 

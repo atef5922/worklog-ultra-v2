@@ -2,6 +2,7 @@ import { ReminderKind, TaskStatus, UserRole } from "@prisma/client";
 import { endOfDay, startOfDay, subDays } from "date-fns";
 import { extractAssignmentAttachmentMeta } from "@/lib/assignment-attachments";
 import { extractAssignmentReviewReason, isAssignmentReviewReason } from "@/lib/assignment-review";
+import { calculateSegmentedAttendanceMetrics } from "@/lib/attendance-policy";
 import { db } from "@/lib/db";
 import { isMovedToHistory } from "@/lib/task-history-shared";
 import { isRecurringTaskDescription, stripRecurringTaskMeta } from "@/lib/recurring-task-templates";
@@ -9,7 +10,6 @@ import { buildContinuationDescription, extractContinuationMeta, stripContinuatio
 import {
   calculateDailyRate,
   calculateHourlyRate,
-  calculateMinutesBetween,
   calculateOvertimeMinutes,
   calculateRegularMinutes,
   calculateWeeklyRate,
@@ -1390,6 +1390,10 @@ export async function getWorkspaceDirectoryData(viewer: {
         },
         orderBy: { attendanceDate: "desc" },
         take: 1,
+        include: {
+          workSessions: { orderBy: { startedAt: "asc" } },
+          breakSessions: { orderBy: { startedAt: "asc" } },
+        },
       },
       taskOwner: {
         where: {
@@ -1419,6 +1423,15 @@ export async function getWorkspaceDirectoryData(viewer: {
   return {
     departments: departments ?? [],
     users: (users ?? []).map((user) => {
+      const attendanceRecord = user.attendanceRecords[0] ?? null;
+      const attendanceMetrics = attendanceRecord
+        ? calculateSegmentedAttendanceMetrics({
+            attendanceDate: today,
+            workSessions: attendanceRecord.workSessions,
+            breakSessions: attendanceRecord.breakSessions,
+            legacyBreakMinutes: attendanceRecord.legacyBreakMinutes,
+          })
+        : null;
       const todaysPlans = (user.taskOwner ?? []).map((task) => {
         const latestUpdate = task.updates?.[0] ?? null;
 
@@ -1447,14 +1460,20 @@ export async function getWorkspaceDirectoryData(viewer: {
         taskCount: todaysPlans.length,
         completedTaskCount: todaysPlans.filter((task) => task.status === "done").length,
         totalTrackedMinutes: todaysPlans.reduce((sum, task) => sum + task.trackedMinutes, 0),
-        attendance: user.attendanceRecords[0]
+        attendance: attendanceRecord
           ? {
-              status: user.attendanceRecords[0].status,
-              checkInAt: user.attendanceRecords[0].checkInAt,
-              checkOutAt: user.attendanceRecords[0].checkOutAt,
-              breakMinutes: user.attendanceRecords[0].breakMinutes,
-              workingMinutes: user.attendanceRecords[0].workingMinutes,
-              note: user.attendanceRecords[0].note,
+              status: attendanceRecord.status,
+              checkInAt: attendanceRecord.checkInAt,
+              checkOutAt: attendanceRecord.checkOutAt,
+              breakMinutes: attendanceMetrics?.breakMinutes ?? attendanceRecord.breakMinutes,
+              presenceMinutes: attendanceMetrics?.presenceMinutes ?? 0,
+              activeMinutes: attendanceMetrics?.activeMinutes ?? 0,
+              outsideMinutes: attendanceMetrics?.outsideMinutes ?? 0,
+              includedBreakMinutes: attendanceMetrics?.includedBreakMinutes ?? 0,
+              excessBreakMinutes: attendanceMetrics?.excessBreakMinutes ?? 0,
+              overtimeMinutes: attendanceMetrics?.overtimeMinutes ?? 0,
+              workingMinutes: attendanceMetrics?.workingMinutes ?? 0,
+              note: attendanceRecord.note,
             }
           : null,
         todaysPlans,
@@ -1469,22 +1488,6 @@ export async function getAttendanceData(user: {
   departmentId?: string | null;
 }) {
   const today = toDateOnly();
-  type AttendanceRuntimeRecord = {
-    id: string;
-    userId: string;
-    status: "present" | "late" | "half_day" | "absent" | "remote";
-    checkInAt: Date | null;
-    checkOutAt: Date | null;
-    breakMinutes: number;
-    workingMinutes: number;
-    note: string | null;
-  };
-
-  const attendanceModel = (db as unknown as {
-    attendanceRecord?: {
-      findMany: (args: Record<string, unknown>) => Promise<AttendanceRuntimeRecord[]>;
-    };
-  }).attendanceRecord;
   const attendanceWhere =
     user.role === UserRole.manager && user.departmentId
       ? { departmentId: user.departmentId }
@@ -1492,39 +1495,42 @@ export async function getAttendanceData(user: {
         ? { id: user.id }
         : undefined;
 
-  const users = await db.user.findMany({
-    where: {
-      isActive: true,
-      ...(attendanceWhere ?? {}),
-    },
-    include: {
-      department: true,
-    },
-    orderBy: [{ name: "asc" }],
-  });
-
-  const records: AttendanceRuntimeRecord[] = attendanceModel
-    ? await attendanceModel.findMany({
-        where: {
-          attendanceDate: new Date(today),
-          user: attendanceWhere,
-        },
-        include: {
-          user: {
-            include: {
-              department: true,
-            },
-          },
-        },
-        orderBy: [{ checkInAt: "asc" }],
-      })
-    : [];
+  const [users, records] = await Promise.all([
+    db.user.findMany({
+      where: {
+        isActive: true,
+        ...(attendanceWhere ?? {}),
+      },
+      include: { department: true },
+      orderBy: [{ name: "asc" }],
+    }),
+    db.attendanceRecord.findMany({
+      where: {
+        attendanceDate: new Date(today),
+        user: attendanceWhere,
+      },
+      include: {
+        workSessions: { orderBy: { startedAt: "asc" } },
+        breakSessions: { orderBy: { startedAt: "asc" } },
+      },
+      orderBy: [{ checkInAt: "asc" }],
+    }),
+  ]);
 
   const recordMap = new Map(records.map((record) => [record.userId, record]));
 
   return users.map((member) => {
     const record = recordMap.get(member.id) ?? null;
-    const workingMinutes = record?.workingMinutes ?? calculateMinutesBetween(record?.checkInAt, record?.checkOutAt) - (record?.breakMinutes ?? 0);
+    const metrics = record
+      ? calculateSegmentedAttendanceMetrics({
+          attendanceDate: today,
+          workSessions: record.workSessions,
+          breakSessions: record.breakSessions,
+          legacyBreakMinutes: record.legacyBreakMinutes,
+        })
+      : null;
+    const activeSession = record?.workSessions.find((session) => !session.endedAt) ?? null;
+    const activeBreak = record?.breakSessions.find((session) => !session.endedAt) ?? null;
 
     return {
       userId: member.id,
@@ -1539,9 +1545,22 @@ export async function getAttendanceData(user: {
             status: record.status,
             checkInAt: record.checkInAt,
             checkOutAt: record.checkOutAt,
-            breakMinutes: record.breakMinutes,
-            workingMinutes: Math.max(0, workingMinutes),
+            active: Boolean(activeSession),
+            onBreak: Boolean(activeBreak),
+            currentSessionStartedAt: activeSession?.startedAt ?? null,
+            currentBreakStartedAt: activeBreak?.startedAt ?? null,
+            breakMinutes: metrics?.breakMinutes ?? record.breakMinutes,
+            presenceMinutes: metrics?.presenceMinutes ?? 0,
+            activeMinutes: metrics?.activeMinutes ?? 0,
+            outsideMinutes: metrics?.outsideMinutes ?? 0,
+            includedBreakMinutes: metrics?.includedBreakMinutes ?? 0,
+            excessBreakMinutes: metrics?.excessBreakMinutes ?? 0,
+            overtimeMinutes: metrics?.overtimeMinutes ?? 0,
+            workingMinutes: metrics?.workingMinutes ?? 0,
             note: record.note,
+            workSessions: record.workSessions,
+            breakSessions: record.breakSessions,
+            legacyBreakMinutes: record.legacyBreakMinutes,
           }
         : null,
     };
@@ -1550,37 +1569,19 @@ export async function getAttendanceData(user: {
 
 export async function getCurrentUserAttendanceSnapshot(userId: string) {
   const today = toDateOnly();
-  type AttendanceRuntimeRecord = {
-    id: string;
-    userId: string;
-    status: "present" | "late" | "half_day" | "absent" | "remote";
-    checkInAt: Date | null;
-    checkOutAt: Date | null;
-    breakMinutes: number;
-    workingMinutes: number;
-    note: string | null;
-  };
-
-  const attendanceModel = (db as unknown as {
-    attendanceRecord?: {
-      findUnique: (args: Record<string, unknown>) => Promise<AttendanceRuntimeRecord | null>;
-    };
-  }).attendanceRecord;
-
-  if (!attendanceModel) {
-    return null;
-  }
-
-  return attendanceModel.findUnique({
+  return db.attendanceRecord.findUnique({
     where: {
       userId_attendanceDate: {
         userId,
         attendanceDate: new Date(today),
       },
     },
+    include: {
+      workSessions: { orderBy: { startedAt: "asc" } },
+      breakSessions: { orderBy: { startedAt: "asc" } },
+    },
   });
 }
-
 export async function getReminderCandidates(reminderDate = new Date()) {
   const day = toDateOnly(reminderDate);
   const users = await db.user.findMany({

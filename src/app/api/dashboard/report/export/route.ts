@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { NextRequest, NextResponse } from "next/server";
 import { requireEmployee } from "@/lib/auth/server";
+import { calculateSegmentedAttendanceMetrics } from "@/lib/attendance-policy";
 import { buildReportSummary, type ReportSummaryItem } from "@/lib/report-summary";
 import { getHistoryData } from "@/lib/worklog";
 import { toDateOnly, STANDARD_DAILY_HOURS } from "@/lib/utils";
@@ -95,9 +96,14 @@ type AttendanceDay = {
   date: string;
   checkInAt: string | null;
   checkOutAt: string | null;
+  active: boolean;
+  presenceMinutes: number;
+  activeMinutes: number;
+  outsideMinutes: number;
   breakMinutes: number;
+  workingMinutes: number;
+  overtimeMinutes: number;
 };
-
 type AttendanceMetrics = {
   grossMinutes: number;
   breakMinutes: number;
@@ -119,23 +125,14 @@ function measureAttendanceDay(attendance: AttendanceDay | undefined): Attendance
     return { grossMinutes: 0, breakMinutes: 0, netMinutes: 0, overtimeMinutes: 0, status: "Absent" };
   }
 
-  const breakMinutes = Math.max(0, attendance.breakMinutes ?? 0);
-  const checkIn = new Date(attendance.checkInAt).getTime();
-  const checkOut = attendance.checkOutAt ? new Date(attendance.checkOutAt).getTime() : Number.NaN;
-
-  if (!Number.isFinite(checkOut) || checkOut < checkIn) {
-    // Checked in and never checked out: the span is unknowable, so only the
-    // break (a recorded fact) carries over and the day is flagged as open.
-    return { grossMinutes: 0, breakMinutes, netMinutes: 0, overtimeMinutes: 0, status: "Open session" };
-  }
-
-  const grossMinutes = Math.max(0, Math.round((checkOut - checkIn) / 60000));
-  const netMinutes = Math.max(0, grossMinutes - breakMinutes);
-  const overtimeMinutes = Math.max(0, netMinutes - STANDARD_DAILY_HOURS * 60);
-
-  return { grossMinutes, breakMinutes, netMinutes, overtimeMinutes, status: "Present" };
+  return {
+    grossMinutes: attendance.presenceMinutes,
+    breakMinutes: attendance.breakMinutes,
+    netMinutes: attendance.workingMinutes,
+    overtimeMinutes: attendance.overtimeMinutes,
+    status: attendance.active ? "Open session" : "Present",
+  };
 }
-
 type AttendanceTotals = {
   daysInRange: number;
   daysPresent: number;
@@ -281,10 +278,10 @@ function addCoverSheet(
         ["Days present", input.attendance.daysPresent],
         ["Days absent", input.attendance.daysAbsent],
         ["Open sessions (no check-out)", input.attendance.openSessions],
-        ["Total net work time", formatMinutes(input.attendance.netMinutes)],
+        ["Total counted work time", formatMinutes(input.attendance.netMinutes)],
         ["Total break time", formatMinutes(input.attendance.breakMinutes)],
         ["Total overtime", formatMinutes(input.attendance.overtimeMinutes)],
-        ["Average net work / present day", formatMinutes(input.attendance.averageNetMinutes)],
+        ["Average counted work / present day", formatMinutes(input.attendance.averageNetMinutes)],
         ["Daily baseline", `${STANDARD_DAILY_HOURS}h 00m`],
       ],
     },
@@ -454,7 +451,7 @@ function addDailyLogSheet(workbook: ExcelJS.Workbook, items: ReportSummaryItem[]
 
 function addAttendanceSheet(
   workbook: ExcelJS.Workbook,
-  attendanceData: Array<{ date: string; checkInAt: string | null; checkOutAt: string | null; breakMinutes: number }>,
+  attendanceData: AttendanceDay[],
 ) {
   if (!attendanceData.length) {
     return null;
@@ -469,7 +466,7 @@ function addAttendanceSheet(
     { header: "Check In", key: "checkIn", width: 14 },
     { header: "Check Out", key: "checkOut", width: 14 },
     { header: "Break (min)", key: "breakTime", width: 12 },
-    { header: "Work Time (hrs)", key: "workTime", width: 14 },
+    { header: "Counted Work (hrs)", key: "workTime", width: 14 },
     { header: "Status", key: "status", width: 12 },
   ];
   styleHeaderRow(sheet.getRow(1));
@@ -478,13 +475,8 @@ function addAttendanceSheet(
     const checkInTime = entry.checkInAt ? new Date(`${entry.checkInAt}`) : null;
     const checkOutTime = entry.checkOutAt ? new Date(`${entry.checkOutAt}`) : null;
 
-    let workHours = 0;
-    if (checkInTime && checkOutTime) {
-      workHours = (checkOutTime.getTime() - checkInTime.getTime()) / (1000 * 60 * 60) - entry.breakMinutes / 60;
-    }
-
-    const status = !entry.checkInAt ? "Absent" : !entry.checkOutAt ? "Not Checked Out" : "Present";
-
+    const workHours = entry.workingMinutes / 60;
+    const status = !entry.checkInAt ? "Absent" : entry.active ? "Not Checked Out" : "Present";
     const row = sheet.addRow({
       date: entry.date,
       checkIn: checkInTime ? checkInTime.toLocaleTimeString("en-BD") : "--",
@@ -624,7 +616,7 @@ function addDayByDayDetailSheet(
       ["Check-in", clockInDhaka(attendance?.checkInAt)],
       ["Check-out", clockInDhaka(attendance?.checkOutAt)],
       ["Break", formatMinutes(metrics.breakMinutes)],
-      ["Net work", metrics.status === "Present" ? formatMinutes(metrics.netMinutes) : "--"],
+      ["Counted work", metrics.status === "Present" ? formatMinutes(metrics.netMinutes) : "--"],
       ["Overtime", metrics.status === "Present" ? formatMinutes(metrics.overtimeMinutes) : "--"],
     ];
 
@@ -848,18 +840,36 @@ export async function GET(request: NextRequest) {
         lte: new Date(`${to}T23:59:59.999Z`),
       },
     },
+    include: {
+      workSessions: { orderBy: { startedAt: "asc" } },
+      breakSessions: { orderBy: { startedAt: "asc" } },
+    },
     orderBy: { attendanceDate: "asc" },
   });
 
   const attendanceData: AttendanceDay[] = attendanceRecords
-    .map((record) => ({
-      date: toDateOnly(record.attendanceDate),
-      checkInAt: record.checkInAt?.toISOString() ?? null,
-      checkOutAt: record.checkOutAt?.toISOString() ?? null,
-      breakMinutes: record.breakMinutes ?? 0,
-    }))
+    .map((record) => {
+      const date = toDateOnly(record.attendanceDate);
+      const metrics = calculateSegmentedAttendanceMetrics({
+        attendanceDate: date,
+        workSessions: record.workSessions,
+        breakSessions: record.breakSessions,
+        legacyBreakMinutes: record.legacyBreakMinutes,
+      });
+      return {
+        date,
+        checkInAt: record.checkInAt?.toISOString() ?? null,
+        checkOutAt: record.checkOutAt?.toISOString() ?? null,
+        active: record.workSessions.some((session) => !session.endedAt),
+        presenceMinutes: metrics.presenceMinutes,
+        activeMinutes: metrics.activeMinutes,
+        outsideMinutes: metrics.outsideMinutes,
+        breakMinutes: metrics.breakMinutes,
+        workingMinutes: metrics.workingMinutes,
+        overtimeMinutes: metrics.overtimeMinutes,
+      };
+    })
     .filter((entry) => entry.date >= from && entry.date <= to);
-
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "WorkLog Ultra";
   workbook.created = new Date();

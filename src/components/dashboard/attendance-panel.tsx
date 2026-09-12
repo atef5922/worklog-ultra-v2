@@ -1,20 +1,18 @@
 "use client";
 
-import { CalendarCheck2, Clock3, LogIn, LogOut, MailCheck, TimerReset, Users } from "lucide-react";
+import { CalendarCheck2, Clock3, MailCheck, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { extractAttendanceOvertimeMeta } from "@/lib/attendance-overtime";
 import { Button } from "@/components/ui/button";
-import { clearStoredWorkdayTimer } from "@/components/dashboard/dashboard-workday-timer";
+import { DashboardWorkdayTimer } from "@/components/dashboard/dashboard-workday-timer";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PanelHeader } from "@/components/dashboard/panel-header";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { cn, formatMinutes, toDateOnly, toDateTimeInputValue } from "@/lib/utils";
-
+import { cn, formatMinutes, toDateOnly } from "@/lib/utils";
 function attendanceStatusTone(status?: string | null) {
   if (status === "present" || status === "remote") return "bg-emerald-500/10 text-emerald-600";
   if (status === "late" || status === "half_day") return "bg-amber-500/10 text-amber-600";
@@ -34,31 +32,26 @@ type AttendanceItem = {
     status: "present" | "late" | "half_day" | "absent" | "remote";
     checkInAt: Date | null;
     checkOutAt: Date | null;
+    active: boolean;
+    onBreak: boolean;
+    currentSessionStartedAt: Date | null;
+    currentBreakStartedAt: Date | null;
     breakMinutes: number;
+    presenceMinutes: number;
+    activeMinutes: number;
+    outsideMinutes: number;
+    includedBreakMinutes: number;
+    excessBreakMinutes: number;
+    overtimeMinutes: number;
     workingMinutes: number;
+    legacyBreakMinutes: number;
     note: string | null;
+    workSessions: Array<{ id: string; startedAt: Date; endedAt: Date | null; endReason: string | null }>;
+    breakSessions: Array<{ id: string; startedAt: Date; endedAt: Date | null; endReason: string | null }>;
   } | null;
 };
 
 type AttendanceStatusValue = "present" | "late" | "half_day" | "absent" | "remote";
-
-function formatAttendanceDateTime(value: Date | string = new Date()) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "Asia/Dhaka",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  }).format(date);
-}
 
 function formatAttendanceDisplayParts(value?: Date | string | null) {
   if (!value) {
@@ -104,62 +97,6 @@ function formatAttendanceDisplayParts(value?: Date | string | null) {
   };
 }
 
-function normalizeAttendanceDateTime(value: string) {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return "";
-  }
-
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(trimmed)) {
-    return `${trimmed}:00+06:00`;
-  }
-
-  if (/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}$/.test(trimmed)) {
-    return `${trimmed.replace(" ", "T")}:00+06:00`;
-  }
-
-  const match = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:,\s*|\s+)(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-  if (!match) {
-    return null;
-  }
-
-  const [, monthText, dayText, yearText, hourText, minuteText, meridiem] = match;
-  const month = Number(monthText);
-  const day = Number(dayText);
-  const year = Number(yearText);
-  const minute = Number(minuteText);
-  let hour = Number(hourText);
-
-  if (
-    !Number.isFinite(month) ||
-    !Number.isFinite(day) ||
-    !Number.isFinite(year) ||
-    !Number.isFinite(hour) ||
-    !Number.isFinite(minute) ||
-    month < 1 ||
-    month > 12 ||
-    day < 1 ||
-    day > 31 ||
-    hour < 1 ||
-    hour > 12 ||
-    minute < 0 ||
-    minute > 59
-  ) {
-    return null;
-  }
-
-  const upperMeridiem = meridiem.toUpperCase();
-  if (upperMeridiem === "PM" && hour !== 12) {
-    hour += 12;
-  }
-  if (upperMeridiem === "AM" && hour === 12) {
-    hour = 0;
-  }
-
-  return `${yearText}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00+06:00`;
-}
-
 export function AttendancePanel({
   userRole,
   currentUserId,
@@ -173,80 +110,68 @@ export function AttendancePanel({
   const me = items.find((item) => item.userId === currentUserId);
   const attendanceMeta = extractAttendanceOvertimeMeta(me?.attendance?.note);
   const [status, setStatus] = useState<AttendanceStatusValue>(me?.attendance?.status ?? "present");
-  const [checkInAt, setCheckInAt] = useState(me?.attendance?.checkInAt ? formatAttendanceDateTime(me.attendance.checkInAt) : "");
-  const [checkOutAt, setCheckOutAt] = useState(me?.attendance?.checkOutAt ? formatAttendanceDateTime(me.attendance.checkOutAt) : "");
-  const [breakMinutes, setBreakMinutes] = useState(String(me?.attendance?.breakMinutes ?? 0));
   const [note, setNote] = useState(attendanceMeta.text);
   const [saving, setSaving] = useState(false);
   const [triggering, setTriggering] = useState(false);
-  const [overtimeMinutes, setOvertimeMinutes] = useState(attendanceMeta.overtimeMinutes);
-  const [autoClosedAt, setAutoClosedAt] = useState(attendanceMeta.autoClosedAt);
-  const alreadyCheckedIn = Boolean(me?.attendance?.checkInAt) && !me?.attendance?.checkOutAt;
-
-  async function saveAttendance(next: {
-    nextStatus?: AttendanceStatusValue;
-    nextCheckIn?: string;
-    nextCheckOut?: string;
-  } = {}) {
-    const normalizedCheckIn = normalizeAttendanceDateTime(next.nextCheckIn ?? checkInAt);
-    const normalizedCheckOut = normalizeAttendanceDateTime(next.nextCheckOut ?? checkOutAt);
-
-    if ((next.nextCheckIn ?? checkInAt) && normalizedCheckIn === null) {
-      toast.error("Check In time format is invalid. Use MM/DD/YYYY HH:MM AM or choose Today.");
-      return;
-    }
-
-    if ((next.nextCheckOut ?? checkOutAt) && normalizedCheckOut === null) {
-      toast.error("Check Out time format is invalid. Use MM/DD/YYYY HH:MM AM or choose Today.");
-      return;
-    }
-
-    setSaving(true);
-    const response = await fetch("/api/dashboard/attendance", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+  const timerSnapshot = me?.attendance
+    ? {
         attendanceDate: toDateOnly(),
-        status: next.nextStatus ?? status,
-        note,
-        checkInAt: normalizedCheckIn ?? "",
-        checkOutAt: normalizedCheckOut ?? "",
-        breakMinutes,
-      }),
-    });
+        status: me.attendance.status,
+        note: attendanceMeta.text,
+        breakMinutes: me.attendance.breakMinutes,
+        legacyBreakMinutes: me.attendance.legacyBreakMinutes,
+        checkInAt: me.attendance.checkInAt?.toISOString() ?? null,
+        checkOutAt: me.attendance.checkOutAt?.toISOString() ?? null,
+        active: me.attendance.active,
+        onBreak: me.attendance.onBreak,
+        currentSessionStartedAt: me.attendance.currentSessionStartedAt?.toISOString() ?? null,
+        currentBreakStartedAt: me.attendance.currentBreakStartedAt?.toISOString() ?? null,
+        workSessions: me.attendance.workSessions.map((session) => ({
+          id: session.id,
+          startedAt: session.startedAt.toISOString(),
+          endedAt: session.endedAt?.toISOString() ?? null,
+          endReason: session.endReason,
+        })),
+        breakSessions: me.attendance.breakSessions.map((session) => ({
+          id: session.id,
+          startedAt: session.startedAt.toISOString(),
+          endedAt: session.endedAt?.toISOString() ?? null,
+          endReason: session.endReason,
+        })),
+      }
+    : null;
 
-    const raw = await response.text();
-    const result = raw ? JSON.parse(raw) : { message: "Attendance update failed." };
-    setSaving(false);
-
-    if (!response.ok) {
-      toast.error(result.message);
+  async function saveAttendanceDetails() {
+    if (!me?.attendance) {
+      toast.error("Check In first.");
       return;
     }
-
-    const savedRecord = result.record as
-      | {
-          status?: AttendanceStatusValue;
-          note?: string | null;
-          checkInAt?: string | null;
-          checkOutAt?: string | null;
-          breakMinutes?: number;
-        }
-      | undefined;
-    const savedMeta = extractAttendanceOvertimeMeta(savedRecord?.note);
-
-    setStatus(savedRecord?.status ?? next.nextStatus ?? status);
-    setCheckInAt(savedRecord?.checkInAt ? formatAttendanceDateTime(savedRecord.checkInAt) : "");
-    setCheckOutAt(savedRecord?.checkOutAt ? formatAttendanceDateTime(savedRecord.checkOutAt) : "");
-    setBreakMinutes(String(savedRecord?.breakMinutes ?? breakMinutes));
-    setNote(savedMeta.text);
-    setOvertimeMinutes(savedMeta.overtimeMinutes);
-    setAutoClosedAt(savedMeta.autoClosedAt);
-    clearStoredWorkdayTimer(toDateOnly(), currentUserId);
-    toast.success(result.message);
-    router.refresh();
+    setSaving(true);
+    try {
+      const response = await fetch("/api/dashboard/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_details",
+          attendanceDate: toDateOnly(),
+          status,
+          note,
+        }),
+      });
+      const raw = await response.text();
+      const result = raw ? JSON.parse(raw) : null;
+      if (!response.ok) {
+        toast.error(result?.message ?? "Attendance update failed.");
+        return;
+      }
+      toast.success(result.message);
+      router.refresh();
+    } catch {
+      toast.error("Attendance could not reach the server.");
+    } finally {
+      setSaving(false);
+    }
   }
-
   return (
     /* One screen: the page never scrolls and the title stays fixed; the panels
        below scroll inside their own area, which is what keeps a long team list
@@ -256,14 +181,18 @@ export function AttendancePanel({
       data-fit-viewport
     >
       <PageHeader
+        action={
+          <DashboardWorkdayTimer
+            currentUserId={currentUserId}
+            initialAttendance={timerSnapshot}
+            mode="button"
+          />
+        }
         icon={CalendarCheck2}
-        subtitle="Log today's check in, check out, and break time."
+        subtitle="Use In when you enter, Out when you leave, and Take Break for lunch or rest."
         title="Attendance"
       />
 
-      {/* An employee never sees the team roster, so without this the page had no
-          flexible panel at all and anything past the fold was simply clipped.
-          For a manager the roster below is the flexible one, so this stays put. */}
       <div
         className={cn(
           "dashboard-accent accent-emerald flex min-h-0 flex-col rounded-[1.25rem] border border-[var(--panel-border)] bg-[var(--panel)] p-2.5 shadow-[var(--shadow)]",
@@ -272,122 +201,55 @@ export function AttendancePanel({
         data-dashboard-panel
       >
         <PanelHeader icon={CalendarCheck2} title="Today's Attendance" tone="bg-emerald-500/10 text-emerald-500" />
-        <div className="dashboard-scroll-area mt-2 min-h-0 flex-1 space-y-2 pr-0.5">
-          <div className="grid gap-2 xl:grid-cols-[1fr_auto]">
-            <div className="grid gap-2.5 md:grid-cols-2">
-              <div>
-                <Label>Status</Label>
-                <Select value={status} onValueChange={(value) => setStatus(value as typeof status)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="present">Present</SelectItem>
-                    <SelectItem value="late">Late</SelectItem>
-                    <SelectItem value="half_day">Half Day</SelectItem>
-                    <SelectItem value="absent">Absent</SelectItem>
-                    <SelectItem value="remote">Remote</SelectItem>
-                  </SelectContent>
-                </Select>
+        <div className="dashboard-scroll-area mt-2 min-h-0 flex-1 space-y-3 pr-0.5">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+            {[
+              ["Counted Work", formatMinutes(me?.attendance?.workingMinutes ?? 0)],
+              ["Active Work", formatMinutes(me?.attendance?.activeMinutes ?? 0)],
+              ["Included Break", formatMinutes(me?.attendance?.includedBreakMinutes ?? 0)],
+              ["Outside Gap", formatMinutes(me?.attendance?.outsideMinutes ?? 0)],
+              ["Overtime", formatMinutes(me?.attendance?.overtimeMinutes ?? 0)],
+            ].map(([label, value]) => (
+              <div className="rounded-xl border border-[var(--panel-border)] bg-[var(--panel-muted)] px-3 py-2.5" key={label}>
+                <p className="text-[0.6rem] font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">{label}</p>
+                <p className="mt-1 font-mono text-base font-bold tabular-nums text-[var(--foreground)]">{value}</p>
               </div>
-              <div>
-                <Label>Break Minutes</Label>
-                <Input min="0" onChange={(event) => setBreakMinutes(event.target.value)} type="number" value={breakMinutes} />
-              </div>
-              <div>
-                <Label>Check In</Label>
-                <div className="flex gap-2">
-                  <Input
-                    className="flex-1"
-                    onChange={(event) => setCheckInAt(event.target.value)}
-                    placeholder="MM/DD/YYYY HH:MM AM"
-                    type="text"
-                    value={checkInAt}
-                  />
-                  <Button
-                    className="button-force-white shrink-0 bg-[#4f5ef7] hover:bg-[#4453eb]"
-                    onClick={() => setCheckInAt(formatAttendanceDateTime())}
-                    type="button"
-                  >
-                    Today
-                  </Button>
-                </div>
-              </div>
-              <div>
-                <Label>Check Out</Label>
-                <div className="flex gap-2">
-                  <Input
-                    className="flex-1"
-                    onChange={(event) => setCheckOutAt(event.target.value)}
-                    placeholder="MM/DD/YYYY HH:MM AM"
-                    type="text"
-                    value={checkOutAt}
-                  />
-                  <Button
-                    className="button-force-white shrink-0 bg-amber-500 hover:bg-amber-600"
-                    onClick={() => setCheckOutAt(formatAttendanceDateTime())}
-                    type="button"
-                  >
-                    Today
-                  </Button>
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2 xl:flex-col">
-              <Button
-                className="button-force-white"
-                disabled={saving || alreadyCheckedIn}
-                onClick={() => saveAttendance({ nextStatus: "present", nextCheckIn: checkInAt.trim() || formatAttendanceDateTime() })}
-                type="button"
-              >
-                <LogIn className="h-4 w-4" /> {alreadyCheckedIn ? "Checked In" : "Check In"}
-              </Button>
-              <Button
-                className="button-force-white bg-slate-700 hover:bg-slate-800"
-                disabled={saving}
-                onClick={() => saveAttendance({ nextCheckOut: checkOutAt.trim() || formatAttendanceDateTime() })}
-                type="button"
-                variant="secondary"
-              >
-                <LogOut className="h-4 w-4" /> Check Out
-              </Button>
-              <Button
-                className="button-force-white bg-slate-500 hover:bg-slate-600"
-                disabled={saving}
-                onClick={() => {
-                  setCheckInAt("");
-                  setCheckOutAt("");
-                  setBreakMinutes("0");
-                  setStatus("present");
-                }}
-                type="button"
-                variant="ghost"
-              >
-                <TimerReset className="h-4 w-4" /> Reset Draft
-              </Button>
-            </div>
+            ))}
           </div>
-          <div>
-            <Label>Attendance Note</Label>
-            <Textarea onChange={(event) => setNote(event.target.value)} placeholder="Optional attendance note for today." value={note} />
+          <div className="grid gap-3 md:grid-cols-[12rem_1fr_auto] md:items-end">
+            <div>
+              <Label>Status</Label>
+              <Select value={status} onValueChange={(value) => setStatus(value as AttendanceStatusValue)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="present">Present</SelectItem>
+                  <SelectItem value="late">Late</SelectItem>
+                  <SelectItem value="half_day">Half Day</SelectItem>
+                  <SelectItem value="absent">Absent</SelectItem>
+                  <SelectItem value="remote">Remote</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Attendance Note</Label>
+              <Textarea onChange={(event) => setNote(event.target.value)} placeholder="Optional attendance note for today." value={note} />
+            </div>
+            <Button
+              className="button-force-white h-10 bg-emerald-600 hover:bg-emerald-700"
+              disabled={saving || !me?.attendance}
+              onClick={saveAttendanceDetails}
+              type="button"
+            >
+              {saving ? "Saving..." : "Save Details"}
+            </Button>
           </div>
-          {overtimeMinutes > 0 || autoClosedAt ? (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-[0.8rem] text-amber-700">
-              {overtimeMinutes > 0 ? <p>Overtime tracked: {overtimeMinutes} minute(s).</p> : null}
-              {autoClosedAt ? <p className="mt-1">Main attendance record auto-closed at 7:30 PM.</p> : null}
+          {(me?.attendance?.excessBreakMinutes ?? 0) > 0 ? (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[0.78rem] text-amber-700">
+              Excess break deducted: {formatMinutes(me?.attendance?.excessBreakMinutes ?? 0)}.
             </div>
           ) : null}
-          <Button
-            className="button-force-white h-11 w-full rounded-xl bg-[linear-gradient(135deg,#059669_0%,#0d9488_55%,#14b8a6_100%)] text-sm shadow-[0_14px_30px_rgba(16,185,129,0.26)] transition hover:brightness-[1.06] disabled:brightness-100"
-            disabled={saving}
-            onClick={() => saveAttendance()}
-            type="button"
-          >
-            {saving ? "Saving attendance..." : "Save Attendance"}
-          </Button>
         </div>
       </div>
-
       {/* The only unbounded thing on this page is the roster, so it is the one
           part that takes the leftover height and scrolls inside its own card
           rather than letting the page grow. */}
@@ -460,13 +322,20 @@ export function AttendancePanel({
                     <p className="mt-1 font-mono text-[0.95rem] font-bold leading-none tabular-nums text-[var(--foreground)]">
                       {formatMinutes(item.attendance?.workingMinutes ?? 0)}
                     </p>
-                    <p className="mt-0.5 text-[0.65rem] text-[var(--muted-foreground)]">today</p>
+                    <p className="mt-0.5 text-[0.65rem] text-[var(--muted-foreground)]">
+                      Presence {formatMinutes(item.attendance?.presenceMinutes ?? 0)} · Break {item.attendance?.breakMinutes ?? 0}m
+                    </p>
                   </div>
                 </div>
-                {teamAttendanceMeta.overtimeMinutes > 0 || teamAttendanceMeta.autoClosedAt ? (
+                {(item.attendance?.overtimeMinutes ?? teamAttendanceMeta.overtimeMinutes) > 0 ||
+                (item.attendance?.excessBreakMinutes ?? 0) > 0 ? (
                   <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-[0.72rem] text-amber-700">
-                    {teamAttendanceMeta.overtimeMinutes > 0 ? <p>Overtime: {formatMinutes(teamAttendanceMeta.overtimeMinutes)}</p> : null}
-                    {teamAttendanceMeta.autoClosedAt ? <p className="mt-0.5">Main record auto-closed at 7:30 PM.</p> : null}
+                    {(item.attendance?.overtimeMinutes ?? teamAttendanceMeta.overtimeMinutes) > 0 ? (
+                      <p>Overtime after 7 PM: {formatMinutes(item.attendance?.overtimeMinutes ?? teamAttendanceMeta.overtimeMinutes)}</p>
+                    ) : null}
+                    {(item.attendance?.excessBreakMinutes ?? 0) > 0 ? (
+                      <p className="mt-0.5">Excess break deducted: {item.attendance?.excessBreakMinutes}m</p>
+                    ) : null}
                   </div>
                 ) : null}
               </div>

@@ -107,6 +107,10 @@
       {
         "from": "prisma/migrations/0007_task_activity_history/migration.sql",
         "to": "task-activity-history-schema.sql"
+      },
+      {
+        "from": "prisma/migrations/0008_attendance_sessions/migration.sql",
+        "to": "attendance-sessions-schema.sql"
       }
     ],
     "win": {

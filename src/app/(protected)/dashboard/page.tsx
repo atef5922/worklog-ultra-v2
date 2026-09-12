@@ -166,11 +166,14 @@ export default async function DashboardPage() {
     (sum, task) => sum + getTaskDaySeed(task, reportDate).trackedMinutes,
     0,
   );
-  const attendanceStatusLabel =
-    attendance?.checkInAt && !attendance?.checkOutAt
+  const attendanceActive = Boolean(attendance?.workSessions.some((session) => !session.endedAt));
+  const attendanceOnBreak = Boolean(attendance?.breakSessions.some((session) => !session.endedAt));
+  const attendanceStatusLabel = attendanceOnBreak
+    ? "Currently on break"
+    : attendanceActive
       ? "You are checked in"
-      : attendance?.checkInAt && attendance?.checkOutAt
-        ? "Attendance completed"
+      : attendance?.checkInAt
+        ? "Checked out - check in again anytime"
         : "No attendance logged yet";
   const motivation = getMotivationalMessage({
     name: user.name,
@@ -354,10 +357,30 @@ export default async function DashboardPage() {
                 attendance
                   ? {
                       status: attendance.status,
+                      attendanceDate: toDateOnly(attendance.attendanceDate),
                       note: attendance.note ?? "",
                       breakMinutes: attendance.breakMinutes ?? 0,
                       checkInAt: attendance.checkInAt?.toISOString() ?? null,
                       checkOutAt: attendance.checkOutAt?.toISOString() ?? null,
+                      legacyBreakMinutes: attendance.legacyBreakMinutes,
+                      active: attendanceActive,
+                      onBreak: attendanceOnBreak,
+                      currentSessionStartedAt:
+                        attendance.workSessions.find((session) => !session.endedAt)?.startedAt.toISOString() ?? null,
+                      currentBreakStartedAt:
+                        attendance.breakSessions.find((session) => !session.endedAt)?.startedAt.toISOString() ?? null,
+                      workSessions: attendance.workSessions.map((session) => ({
+                        id: session.id,
+                        startedAt: session.startedAt.toISOString(),
+                        endedAt: session.endedAt?.toISOString() ?? null,
+                        endReason: session.endReason,
+                      })),
+                      breakSessions: attendance.breakSessions.map((session) => ({
+                        id: session.id,
+                        startedAt: session.startedAt.toISOString(),
+                        endedAt: session.endedAt?.toISOString() ?? null,
+                        endReason: session.endReason,
+                      })),
                     }
                   : null
               }
@@ -427,7 +450,7 @@ export default async function DashboardPage() {
             itself, so the page never grows past one screen. */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
           <DashboardWorkPlanSection
-            attendanceRunning={Boolean(attendance?.checkInAt && !attendance?.checkOutAt)}
+            attendanceRunning={attendanceActive}
             canEdit={editAccess.allowed}
             currentUserId={user.id}
             formattedDate={formatDashboardDate(today)}
@@ -455,10 +478,31 @@ export default async function DashboardPage() {
                 trackedMinutes: getTaskDaySeed(task, reportDate).trackedMinutes,
               }))}
               attendance={attendance ? {
+                attendanceDate: toDateOnly(attendance.attendanceDate),
                 status: attendance.status,
+                note: attendance.note ?? "",
                 checkInAt: attendance.checkInAt?.toISOString() ?? null,
                 checkOutAt: attendance.checkOutAt?.toISOString() ?? null,
                 breakMinutes: attendance.breakMinutes ?? 0,
+                legacyBreakMinutes: attendance.legacyBreakMinutes,
+                active: attendanceActive,
+                onBreak: attendanceOnBreak,
+                currentSessionStartedAt:
+                  attendance.workSessions.find((session) => !session.endedAt)?.startedAt.toISOString() ?? null,
+                currentBreakStartedAt:
+                  attendance.breakSessions.find((session) => !session.endedAt)?.startedAt.toISOString() ?? null,
+                workSessions: attendance.workSessions.map((session) => ({
+                  id: session.id,
+                  startedAt: session.startedAt.toISOString(),
+                  endedAt: session.endedAt?.toISOString() ?? null,
+                  endReason: session.endReason,
+                })),
+                breakSessions: attendance.breakSessions.map((session) => ({
+                  id: session.id,
+                  startedAt: session.startedAt.toISOString(),
+                  endedAt: session.endedAt?.toISOString() ?? null,
+                  endReason: session.endReason,
+                })),
               } : null}
             />
 

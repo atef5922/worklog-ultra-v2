@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { BellRing, BriefcaseBusiness, Camera, CalendarCheck2, ChevronLeft, ChevronRight, CheckSquare2, ClipboardList, FileClock, FolderTree, LayoutDashboard, LogOut, Menu, Settings, Shield, UserRoundSearch, Users, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -36,7 +36,9 @@ const navLinkActiveClass =
   "bg-[linear-gradient(135deg,#5667ff_0%,#4a59ea_100%)] text-[#f8fbff] shadow-[0_14px_24px_rgba(86,103,255,0.26)] sidebar-force-white";
 const navLinkIdleClass = "hover:bg-white/12";
 
-const SIDEBAR_COLLAPSED_KEY = "worklog-sidebar-collapsed";
+const SIDEBAR_PINNED_KEY = "worklog-sidebar-pinned";
+const SIDEBAR_HOVER_EXPAND_DELAY_MS = 140;
+const SIDEBAR_HOVER_COLLAPSE_DELAY_MS = 240;
 
 function SidebarContent({
   user,
@@ -111,7 +113,7 @@ function SidebarContent({
   }
 
   const settingsLink = (
-    <motion.div transition={{ duration: 0.18, ease: "easeOut" }} whileHover={{ x: 4 }} whileTap={{ scale: 0.99 }}>
+    <motion.div transition={{ duration: 0.16, ease: "easeOut" }} whileTap={{ scale: 0.99 }}>
       <Link
         className={cn(navLinkClass, pathname === "/dashboard/settings" ? navLinkActiveClass : navLinkIdleClass)}
         data-sidebar-row
@@ -176,8 +178,7 @@ function SidebarContent({
           const linkNode = (
             <motion.div
               key={item.href}
-              transition={{ duration: 0.18, ease: "easeOut" }}
-              whileHover={{ x: 4 }}
+              transition={{ duration: 0.16, ease: "easeOut" }}
               whileTap={{ scale: 0.99 }}
             >
               <Link
@@ -234,6 +235,8 @@ function SidebarContent({
 
 export function Sidebar({ user }: { user: DashboardSidebarUser }) {
   const pathname = usePathname();
+  const collapseTimerRef = useRef<number | null>(null);
+  const expandTimerRef = useRef<number | null>(null);
 
   // The width, the labels and the toggle's own arrow are all driven off this one
   // attribute rather than off React state, the same way the theme is. The server
@@ -241,41 +244,139 @@ export function Sidebar({ user }: { user: DashboardSidebarUser }) {
   // stored preference can be restored without a hydration mismatch — and there
   // is no second copy of the state in React to fall out of step with the DOM.
   useEffect(() => {
-    document.documentElement.dataset.sidebarCollapsed = String(
-      window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true",
-    );
+    const pinned = window.localStorage.getItem(SIDEBAR_PINNED_KEY) === "true";
+    document.documentElement.dataset.sidebarPinned = String(pinned);
+    document.documentElement.dataset.sidebarCollapsed = String(!pinned);
+    document.documentElement.dataset.sidebarPeek = "false";
+
+    return () => {
+      if (collapseTimerRef.current !== null) {
+        window.clearTimeout(collapseTimerRef.current);
+      }
+      if (expandTimerRef.current !== null) {
+        window.clearTimeout(expandTimerRef.current);
+      }
+    };
   }, []);
 
-  function toggleCollapsed() {
-    const next = document.documentElement.dataset.sidebarCollapsed !== "true";
-    document.documentElement.dataset.sidebarCollapsed = String(next);
-    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+  function isPinned() {
+    return document.documentElement.dataset.sidebarPinned === "true";
+  }
+
+  function clearExpandTimer() {
+    if (expandTimerRef.current !== null) {
+      window.clearTimeout(expandTimerRef.current);
+      expandTimerRef.current = null;
+    }
+  }
+
+  function expandTemporarily() {
+    clearExpandTimer();
+
+    if (collapseTimerRef.current !== null) {
+      window.clearTimeout(collapseTimerRef.current);
+      collapseTimerRef.current = null;
+    }
+
+    if (!isPinned()) {
+      document.documentElement.dataset.sidebarPeek = "true";
+    }
+  }
+
+  function scheduleTemporaryExpand() {
+    if (collapseTimerRef.current !== null) {
+      window.clearTimeout(collapseTimerRef.current);
+      collapseTimerRef.current = null;
+    }
+
+    if (
+      isPinned() ||
+      document.documentElement.dataset.sidebarPeek === "true" ||
+      expandTimerRef.current !== null
+    ) {
+      return;
+    }
+
+    expandTimerRef.current = window.setTimeout(() => {
+      expandTimerRef.current = null;
+      if (!isPinned()) {
+        document.documentElement.dataset.sidebarPeek = "true";
+      }
+    }, SIDEBAR_HOVER_EXPAND_DELAY_MS);
+  }
+
+  function collapseTemporarily() {
+    clearExpandTimer();
+
+    if (collapseTimerRef.current !== null) {
+      window.clearTimeout(collapseTimerRef.current);
+    }
+
+    collapseTimerRef.current = window.setTimeout(() => {
+      if (!isPinned()) {
+        document.documentElement.dataset.sidebarPeek = "false";
+      }
+      collapseTimerRef.current = null;
+    }, SIDEBAR_HOVER_COLLAPSE_DELAY_MS);
+  }
+
+  function togglePinned() {
+    clearExpandTimer();
+
+    if (collapseTimerRef.current !== null) {
+      window.clearTimeout(collapseTimerRef.current);
+      collapseTimerRef.current = null;
+    }
+
+    const nextPinned = !isPinned();
+    document.documentElement.dataset.sidebarPinned = String(nextPinned);
+    document.documentElement.dataset.sidebarCollapsed = String(!nextPinned);
+    document.documentElement.dataset.sidebarPeek = "false";
+    window.localStorage.setItem(SIDEBAR_PINNED_KEY, String(nextPinned));
   }
 
   return (
     /* Entrance is CSS (`.dashboard-sidebar` in globals.css) so the rail paints
        with the server HTML rather than appearing only once React hydrates. */
+    <div className="dashboard-sidebar-shell sticky top-0 z-30 hidden h-screen w-[var(--sidebar-width)] shrink-0 lg:block">
     <aside
       // z-30 because the toggle overhangs the rail onto the header's left edge,
       // and sticky positioning makes this element its own stacking context — so
       // the button can only clear the z-20 header if the rail itself does.
-      className="dashboard-sidebar sticky top-0 z-30 hidden h-screen w-[var(--sidebar-width)] shrink-0 bg-[linear-gradient(160deg,#000080_0%,#001f66_55%,#020b31_100%)] px-3 pb-3 transition-[width] duration-200 ease-out lg:flex lg:flex-col"
+      className="dashboard-sidebar absolute inset-y-0 left-0 flex h-screen w-[var(--sidebar-visual-width)] flex-col overflow-visible bg-[linear-gradient(160deg,#000080_0%,#001f66_55%,#020b31_100%)] px-3 pb-3"
+      // Mouseover acts only as an intent sensor; the single leave boundary
+      // keeps child-to-child movement stable and lets the toggle opt out of
+      // automatic expansion while remaining independently clickable.
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          collapseTemporarily();
+        }
+      }}
+      onFocusCapture={expandTemporarily}
+      onMouseOver={(event) => {
+        if (!(event.target instanceof Element && event.target.closest("[data-sidebar-toggle]"))) {
+          scheduleTemporaryExpand();
+        }
+      }}
+      onMouseLeave={collapseTemporarily}
     >
       <SidebarContent pathname={pathname} user={user} />
       {/* Both arrows ship and CSS picks one, so the collapsed rail can be
           restored from localStorage without the server and the client
           disagreeing about which way the chevron points. */}
       <button
-        aria-label="Toggle sidebar"
+        aria-label="Pin or collapse sidebar"
         className="dashboard-sidebar-toggle"
-        onClick={toggleCollapsed}
-        title="Toggle sidebar"
+        data-sidebar-toggle
+        onClick={togglePinned}
+        title="Pin or collapse sidebar"
         type="button"
       >
         <ChevronLeft className="h-3.5 w-3.5" data-sidebar-toggle-icon="collapse" />
         <ChevronRight className="h-3.5 w-3.5" data-sidebar-toggle-icon="expand" />
       </button>
     </aside>
+    </div>
   );
 }
 

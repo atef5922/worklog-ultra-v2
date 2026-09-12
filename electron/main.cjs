@@ -16,6 +16,10 @@ let mainWindow;
 let splashWindow;
 let nextProcess;
 let screenshotMonitor;
+let quitHandshakeStarted = false;
+let quitReady = false;
+let quitTimer = null;
+let runtimeStopped = false;
 
 function writeDesktopLog(message) {
   try {
@@ -168,6 +172,12 @@ const SCHEMA_PATCHES = [
     check:
       "SELECT 1 FROM information_schema.tables WHERE table_name = 'task_activity_events'",
     file: "task-activity-history-schema.sql",
+  },
+  {
+    label: "multiple attendance sessions",
+    check:
+      "SELECT 1 FROM information_schema.tables WHERE table_name = 'attendance_work_sessions'",
+    file: "attendance-sessions-schema.sql",
   },
 ];
 
@@ -341,6 +351,12 @@ function createMainWindow() {
     closeSplashWindow();
     mainWindow?.show();
   });
+  // Windows does not guarantee app.before-quit during OS logoff/shutdown.
+  // Notify the renderer while the session is still ending so sendBeacon can
+  // persist attendance and running task segments without blocking shutdown.
+  mainWindow.on("query-session-end", () => {
+    if (!mainWindow?.isDestroyed()) mainWindow.webContents.send("app:quit");
+  });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isTrustedAppUrl(url)) return { action: "allow" };
     openExternalHttpUrl(url);
@@ -482,13 +498,11 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("before-quit", () => {
+function stopDesktopRuntime() {
+  if (runtimeStopped) return;
+  runtimeStopped = true;
   screenshotMonitor?.shutdown();
   if (nextProcess && !nextProcess.killed) nextProcess.kill();
-  // Signal the renderer to stop any running timers before app closes
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send("app:quit");
-  }
   if (app.isPackaged) {
     const paths = getPostgresPaths();
     const child = spawn(paths.pgCtl, ["stop", "-D", paths.data, "-m", "fast", "-w"], {
@@ -499,4 +513,27 @@ app.on("before-quit", () => {
     });
     child.unref();
   }
+}
+
+function finishQuitHandshake() {
+  if (quitReady) return;
+  quitReady = true;
+  if (quitTimer) clearTimeout(quitTimer);
+  app.quit();
+}
+
+ipcMain.on("app:quit-ready", finishQuitHandshake);
+
+app.on("before-quit", (event) => {
+  if (!quitReady && mainWindow && !mainWindow.isDestroyed()) {
+    event.preventDefault();
+    if (!quitHandshakeStarted) {
+      quitHandshakeStarted = true;
+      mainWindow.webContents.send("app:quit");
+      quitTimer = setTimeout(finishQuitHandshake, 1500);
+    }
+    return;
+  }
+
+  stopDesktopRuntime();
 });

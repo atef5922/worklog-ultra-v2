@@ -80,6 +80,7 @@ function buildMultipart(fields, file) {
 function createScreenshotMonitor({ appUrl, storageRoot, log, onStatusChange }) {
   const logger = log || (() => {});
   const notify = onStatusChange || (() => {});
+  const agentStartedAt = new Date().toISOString();
 
   let state = "STOPPED";
   let currentSession = null; // { userId, label }
@@ -182,7 +183,11 @@ function createScreenshotMonitor({ appUrl, storageRoot, log, onStatusChange }) {
   }
 
   async function checkAttendanceStatus() {
-    return performRequest({ method: "GET", url: `${appUrl}/api/dashboard/attendance` });
+    const query = new URLSearchParams({
+      deviceKey: getOrCreateDeviceKey(),
+      agentStartedAt,
+    });
+    return performRequest({ method: "GET", url: `${appUrl}/api/dashboard/attendance?${query.toString()}` });
   }
 
   async function sendHeartbeat() {
@@ -478,16 +483,18 @@ function createScreenshotMonitor({ appUrl, storageRoot, log, onStatusChange }) {
       return;
     }
 
-    const { userId, active } = result.json;
-    if (active && state === "STOPPED") {
-      start({ userId, label: "Attendance" });
-      logger(`session_restored user=${userId}`);
-    } else if (!active && state !== "STOPPED") {
+    const { userId, active, onBreak } = result.json;
+    if (!active && state !== "STOPPED") {
       stop();
+    } else if (active && state === "STOPPED") {
+      start({ userId, label: "Attendance" });
+      if (onBreak) pause();
+      logger(`session_restored user=${userId} break=${Boolean(onBreak)}`);
+    } else if (active && onBreak && state === "ACTIVE") {
+      pause();
+    } else if (active && !onBreak && state === "PAUSED") {
+      resume();
     }
-    // If PAUSED, leave it alone — a break is local-only state the backend
-    // does not know about, and reconcile must never force it back ACTIVE.
-
     void flushQueue(userId);
     void sendHeartbeat();
     void pruneStaleQueueEntries();
