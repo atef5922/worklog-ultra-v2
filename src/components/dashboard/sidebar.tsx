@@ -4,10 +4,12 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BellRing, BriefcaseBusiness, Camera, CalendarCheck2, ChevronLeft, ChevronRight, CheckSquare2, ClipboardList, FileClock, FolderTree, LayoutDashboard, LogOut, Menu, Settings, Shield, UserRoundSearch, Users, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { BellRing, BriefcaseBusiness, CalendarCheck2, ChevronLeft, ChevronRight, ChevronsUpDown, CheckSquare2, ClipboardList, FileClock, FolderTree, LayoutDashboard, LogOut, Menu, Settings, Shield, Users, X } from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { getSidebarLayout } from "@/lib/sidebar-layout";
+import { canOpenManagement, can, isSuperAdmin } from "@/lib/auth/policy";
 import { cn } from "@/lib/utils";
 import { NOTICES_READ_EVENT } from "@/lib/dashboard-live-events";
 import type { DashboardSidebarUser } from "@/lib/contracts/user";
@@ -20,18 +22,19 @@ const navItems = [
   { href: "/dashboard/history", icon: BriefcaseBusiness, label: "History" },
   { href: "/dashboard/assignments", icon: CheckSquare2, label: "Assignments" },
   { href: "/dashboard/notices", icon: BellRing, label: "Notices" },
-  { href: "/dashboard/directory", icon: UserRoundSearch, label: "Work Monitor" },
-  { href: "/dashboard/screenshots", icon: Camera, label: "Screenshots" },
-  { href: "/dashboard/team", icon: Users, label: "Team" },
-  { href: "/admin", icon: Shield, label: "Admin" },
+  { href: "/dashboard/team", icon: Users, label: "My Team" },
+  { href: "/management", icon: LayoutDashboard, label: "Management" },
+  { href: "/management/reports", icon: FileClock, label: "Management Reports" },
+  { href: "/admin/access-control", icon: Shield, label: "Access Control" },
+  { href: "/management/audit", icon: ClipboardList, label: "Audit Log" },
   { href: "/admin/departments", icon: FolderTree, label: "Departments" },
 ];
 
-// Shared by the scrolling nav list and the pinned Settings row below it, so the
+// Shared by the height-fitted nav list and the pinned Settings row below it, so the
 // two can never drift apart visually. `relative` anchors the unread dot once the
 // collapsed rail takes away the row it used to sit at the end of.
 const navLinkClass =
-  "sidebar-force-white relative flex items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-sm font-medium text-white transition-colors";
+  "sidebar-force-white relative flex min-w-0 items-center gap-2.5 rounded-xl px-2.5 text-sm font-medium text-white transition-colors";
 const navLinkActiveClass =
   "bg-[linear-gradient(135deg,#5667ff_0%,#4a59ea_100%)] text-[#f8fbff] shadow-[0_14px_24px_rgba(86,103,255,0.26)] sidebar-force-white";
 const navLinkIdleClass = "hover:bg-white/12";
@@ -53,6 +56,39 @@ function SidebarContent({
 }) {
   const router = useRouter();
   const [noticeNotifications, setNoticeNotifications] = useState(user.noticeNotifications ?? 0);
+  const navigationRegionRef = useRef<HTMLDivElement>(null);
+  const [navigationHeight, setNavigationHeight] = useState(0);
+  const [pageAnchor, setPageAnchor] = useState({ pathname: "", index: 0 });
+  const visibleItems = navItems.filter((item) => {
+    if (item.href === "/management") return canOpenManagement(user);
+    if (item.href === "/management/reports") return can(user, "reports.view");
+    if (item.href === "/management/audit") return can(user, "audit_logs.view");
+    if (item.href === "/admin/access-control") return isSuperAdmin(user);
+    if (item.href === "/admin/departments") return can(user, "departments.manage");
+    if (item.href === "/dashboard/team") return user.role === "team_head" || isSuperAdmin(user);
+    return true;
+  });
+  const layout = getSidebarLayout({
+    itemCount: visibleItems.length,
+    availableHeight: navigationHeight,
+    preferredRowHeight: mobile ? 44 : 40,
+    minimumRowHeight: mobile ? 44 : 30,
+    pagerHeight: mobile ? 48 : 36,
+  });
+  const activeIndex = Math.max(0, visibleItems.findIndex(item => item.href === pathname));
+  const anchor = pageAnchor.pathname === pathname ? pageAnchor.index : activeIndex;
+  const page = Math.min(layout.pageCount - 1, Math.floor(anchor / Math.max(1, layout.pageSize)));
+  const pageItems = visibleItems.slice(page * layout.pageSize, (page + 1) * layout.pageSize);
+
+  useEffect(() => {
+    const region = navigationRegionRef.current;
+    if (!region) return;
+    const measure = () => setNavigationHeight(region.clientHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(region);
+    return () => observer.disconnect();
+  }, []);
 
   // Independent of the header's own poll — the two are siblings under the
   // layout, not parent/child, so each keeps its own short-interval refresh
@@ -128,19 +164,17 @@ function SidebarContent({
   );
 
   const navNode = (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="sidebar-content flex min-h-0 flex-1 flex-col" data-sidebar-mobile={mobile ? "true" : undefined}>
       <div
         className={cn(
           "flex shrink-0 items-center",
           // Desktop: full-bleed so the band's hairline runs edge to edge and joins
           // the header's; the inner padding still matches the nav rows exactly.
-          mobile ? "px-2.5 py-2" : "dashboard-brandbar -mx-3 px-[1.375rem]",
+          mobile ? "hidden" : "dashboard-brandbar -mx-3 px-[1.375rem]",
         )}
         data-sidebar-brand={mobile ? undefined : ""}
       >
-        {/* h-8 and gap-2, not h-9 and gap-2.5: the 175px rail leaves 99.4px for
-            the name here, and "WorkLog Ultra" measures 90px at 0.95rem. truncate
-            stays as the safety net if Manrope ever falls back to a wider face. */}
+        {/* A fixed icon lane keeps the logo steady during width transitions. */}
         <div className="flex min-w-0 items-center gap-2">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#102b4f] text-[#35d39a]">
             <CheckSquare2 className="h-4 w-4" />
@@ -150,30 +184,15 @@ function SidebarContent({
           </p>
         </div>
       </div>
+      <div className="sidebar-navigation-region" ref={navigationRegionRef}>
       <nav
-        // pr leaves room for the 4px hover slide, and dashboard-scroll-area pins
-        // overflow-x so a wider label can never turn this into a horizontal bar.
-        className="dashboard-scroll-area mt-4 min-h-0 flex-1 space-y-0.5 pr-1.5"
+        aria-label="Main navigation"
+        className="sidebar-navigation"
+        style={{ "--sidebar-visible-rows": pageItems.length, "--sidebar-nav-row-height": `${layout.rowHeight}px` } as CSSProperties}
       >
-        {navItems.map((item) => {
+        {pageItems.map((item) => {
           const active = pathname === item.href;
           const Icon = item.icon;
-          const hiddenForEmployee =
-            item.href === "/admin" && !["manager", "admin"].includes(user.role);
-          const hiddenDepartments =
-            item.href === "/admin/departments" &&
-            !["manager", "admin"].includes(user.role) &&
-            !user.extraAccess?.includes("manage_departments");
-          const hiddenForTeam = item.href === "/dashboard/team" && user.role === "employee" && !user.extraAccess?.includes("team_dashboard");
-          const hiddenWorkMonitor =
-            item.href === "/dashboard/directory" &&
-            !["manager", "admin"].includes(user.role) &&
-            !user.extraAccess?.includes("work_monitor");
-          const hiddenScreenshots = item.href === "/dashboard/screenshots" && !["manager", "admin"].includes(user.role);
-          const hiddenForAdminWorkerFlow = false;
-          const hiddenRequestInboxForAdmin = false;
-
-          if (hiddenForEmployee || hiddenDepartments || hiddenForTeam || hiddenWorkMonitor || hiddenScreenshots || hiddenForAdminWorkerFlow || hiddenRequestInboxForAdmin) return null;
 
           const linkNode = (
             <motion.div
@@ -182,6 +201,8 @@ function SidebarContent({
               whileTap={{ scale: 0.99 }}
             >
               <Link
+                aria-current={active ? "page" : undefined}
+                aria-label={item.label}
                 key={item.href}
                 href={item.href}
                 onClick={() => onNavigate?.()}
@@ -214,10 +235,26 @@ function SidebarContent({
           return linkNode;
         })}
       </nav>
-      <div className={cn("mt-auto shrink-0 space-y-0.5 pt-2", mobile && "mb-4")}>
+      {layout.pageCount > 1 ? (
+        <div className="sidebar-navigation-pager">
+          <button
+            aria-label={`Show next navigation page, page ${page + 1} of ${layout.pageCount}`}
+            className={cn(navLinkClass, "w-full hover:bg-white/12")}
+            data-sidebar-row
+            onClick={() => setPageAnchor({ pathname, index: ((page + 1) % layout.pageCount) * layout.pageSize })}
+            title={`More menu options (${page + 1}/${layout.pageCount})`}
+            type="button"
+          >
+            <ChevronsUpDown className="h-5 w-5 shrink-0" />
+            <span data-sidebar-label>More ({page + 1}/{layout.pageCount})</span>
+          </button>
+        </div>
+      ) : null}
+      </div>
+      <div className="sidebar-footer">
         {mobile ? <Dialog.Close asChild>{settingsLink}</Dialog.Close> : settingsLink}
         <button
-          className="sidebar-force-white relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left text-sm font-semibold transition hover:bg-white/10"
+          className={cn(navLinkClass, "w-full text-left font-semibold hover:bg-white/10")}
           data-sidebar-row
           onClick={logout}
           title="Log Out"
@@ -338,12 +375,12 @@ export function Sidebar({ user }: { user: DashboardSidebarUser }) {
   return (
     /* Entrance is CSS (`.dashboard-sidebar` in globals.css) so the rail paints
        with the server HTML rather than appearing only once React hydrates. */
-    <div className="dashboard-sidebar-shell sticky top-0 z-30 hidden h-screen w-[var(--sidebar-width)] shrink-0 lg:block">
+    <div className="dashboard-sidebar-shell sticky top-0 z-30 hidden h-dvh w-[var(--sidebar-width)] shrink-0 lg:block">
     <aside
       // z-30 because the toggle overhangs the rail onto the header's left edge,
       // and sticky positioning makes this element its own stacking context — so
       // the button can only clear the z-20 header if the rail itself does.
-      className="dashboard-sidebar absolute inset-y-0 left-0 flex h-screen w-[var(--sidebar-visual-width)] flex-col overflow-visible bg-[linear-gradient(160deg,#000080_0%,#001f66_55%,#020b31_100%)] px-3 pb-3"
+      className="dashboard-sidebar absolute inset-y-0 left-0 flex h-dvh w-[var(--sidebar-visual-width)] flex-col overflow-visible bg-[linear-gradient(160deg,#000080_0%,#001f66_55%,#020b31_100%)] px-3 pb-3"
       // Mouseover acts only as an intent sensor; the single leave boundary
       // keeps child-to-child movement stable and lets the toggle opt out of
       // automatic expansion while remaining independently clickable.
@@ -382,11 +419,9 @@ export function Sidebar({ user }: { user: DashboardSidebarUser }) {
 
 export function MobileSidebar({ user }: { user: DashboardSidebarUser }) {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  const [menuState, setMenuState] = useState({ pathname, open: false });
+  const open = menuState.pathname === pathname && menuState.open;
+  const setOpen = (nextOpen: boolean) => setMenuState({ pathname, open: nextOpen });
 
   return (
     <Dialog.Root onOpenChange={setOpen} open={open}>
@@ -403,6 +438,7 @@ export function MobileSidebar({ user }: { user: DashboardSidebarUser }) {
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-[rgba(3,8,18,0.72)] backdrop-blur-sm lg:hidden" />
         <Dialog.Content className="fixed inset-y-0 left-0 z-50 flex w-[85vw] max-w-[18.75rem] flex-col bg-[linear-gradient(160deg,#000080_0%,#001f66_55%,#020b31_100%)] p-3.5 shadow-[0_30px_90px_rgba(3,8,18,0.45)] outline-none lg:hidden">
+          <Dialog.Description className="sr-only">Navigate your workspace and permitted management pages.</Dialog.Description>
           <div className="mb-3 flex shrink-0 items-center justify-between">
             <Dialog.Title className="text-sm font-semibold uppercase tracking-[0.24em] text-white">
               WorkLog Ultra

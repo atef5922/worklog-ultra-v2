@@ -121,33 +121,13 @@ async function syncAttendanceSummary(
   });
 }
 
-async function recoverInterruptedSession(
-  record: AttendanceRecordWithSessions,
-  closedAt: Date,
-) {
-  return db.$transaction(async (transaction) => {
-    const openSession = record.workSessions.find((session) => !session.endedAt);
-    if (!openSession || closedAt < openSession.startedAt) return record;
-
-    await transaction.attendanceBreakSession.updateMany({
-      where: { attendanceRecordId: record.id, endedAt: null },
-      data: { endedAt: closedAt, endReason: "device_recovery" },
-    });
-    await transaction.attendanceWorkSession.update({
-      where: { id: openSession.id },
-      data: { endedAt: closedAt, endReason: "device_recovery" },
-    });
-    return syncAttendanceSummary(transaction, record.id, closedAt);
-  });
-}
-
-/** Desktop-authoritative active/break status, including crash recovery. */
-export async function GET(request: NextRequest) {
+/** Server-authoritative attendance status. Only an explicit Out action ends a session. */
+export async function GET() {
   const { user } = await getServerAuthContext();
   if (!user) return apiError("Authentication required.", 401);
 
   const today = toDateOnly();
-  let record = await db.attendanceRecord.findUnique({
+  const todayRecord = await db.attendanceRecord.findUnique({
     where: {
       userId_attendanceDate: {
         userId: user.id,
@@ -156,40 +136,16 @@ export async function GET(request: NextRequest) {
     },
     include: attendanceInclude,
   });
-
-  const deviceKey = request.nextUrl.searchParams.get("deviceKey");
-  const agentStartedAt = new Date(request.nextUrl.searchParams.get("agentStartedAt") ?? "");
-  if (deviceKey && deviceKey.length <= 200 && Number.isFinite(agentStartedAt.getTime())) {
-    const openRecord =
-      record?.workSessions.some((session) => !session.endedAt)
-        ? record
-        : await db.attendanceRecord.findFirst({
-            where: {
-              userId: user.id,
-              workSessions: { some: { endedAt: null } },
-            },
-            orderBy: { attendanceDate: "desc" },
-            include: attendanceInclude,
-          });
-    const device = openRecord
-      ? await db.device.findUnique({
-          where: { userId_deviceKey: { userId: user.id, deviceKey } },
-          select: { lastSeenAt: true },
-        })
-      : null;
-    const lastSeenAt = device?.lastSeenAt ?? null;
-    const openSession = openRecord?.workSessions.find((session) => !session.endedAt) ?? null;
-    if (
-      openRecord &&
-      openSession &&
-      lastSeenAt &&
-      lastSeenAt >= openSession.startedAt &&
-      lastSeenAt.getTime() + 5_000 < agentStartedAt.getTime()
-    ) {
-      const closedRecord = await recoverInterruptedSession(openRecord, lastSeenAt);
-      if (record?.id === closedRecord.id) record = closedRecord;
-    }
-  }
+  const record = todayRecord?.workSessions.some((session) => !session.endedAt)
+    ? todayRecord
+    : await db.attendanceRecord.findFirst({
+        where: {
+          userId: user.id,
+          workSessions: { some: { endedAt: null } },
+        },
+        orderBy: { attendanceDate: "desc" },
+        include: attendanceInclude,
+      }) ?? todayRecord;
 
   if (!record) {
     return apiSuccess({
@@ -221,6 +177,18 @@ export async function POST(request: NextRequest) {
     return apiError(parsed.error.issues[0]?.message ?? "Invalid attendance action.");
   }
 
+  if (parsed.data.action === "update_details") {
+    return apiError("Employees can only record attendance actions.", 403);
+  }
+
+  if (
+    parsed.data.action === "check_out" &&
+    parsed.data.endReason &&
+    parsed.data.endReason !== "manual"
+  ) {
+    return apiError("Attendance can only be checked out manually.", 403);
+  }
+
   const attendanceDate = parsed.data.attendanceDate ?? toDateOnly();
   const occurredAt = actionTime(parsed.data.occurredAt);
   if (!occurredAt) return apiError("Attendance time is invalid.");
@@ -241,6 +209,17 @@ export async function POST(request: NextRequest) {
         include: attendanceInclude,
       });
 
+      if (!record && parsed.data.action === "check_in") {
+        record = await transaction.attendanceRecord.findFirst({
+          where: {
+            userId: user.id,
+            workSessions: { some: { endedAt: null } },
+          },
+          orderBy: { attendanceDate: "desc" },
+          include: attendanceInclude,
+        });
+      }
+
       if (!record && parsed.data.action !== "check_in") {
         throw new Error("ATTENDANCE_NOT_STARTED");
       }
@@ -250,8 +229,8 @@ export async function POST(request: NextRequest) {
           data: {
             userId: user.id,
             attendanceDate: new Date(`${attendanceDate}T00:00:00.000Z`),
-            status: parsed.data.status ?? "present",
-            note: parsed.data.note || null,
+            status: "present",
+            note: null,
           },
           include: attendanceInclude,
         });

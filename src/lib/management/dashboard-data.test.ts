@@ -1,0 +1,17 @@
+import {beforeEach,describe,it,expect,vi} from 'vitest';
+vi.mock('server-only',()=>({}));
+const m=vi.hoisted(()=>({users:vi.fn(),tasks:vi.fn(),attendance:vi.fn()}));
+vi.mock('@/lib/db',()=>({db:{user:{findMany:m.users},dailyTask:{findMany:m.tasks},attendanceRecord:{findMany:m.attendance}}}));
+vi.mock('@/lib/auth/server',()=>({getServerAuthContext:vi.fn()}));
+import {dashboardData} from './dashboard-data';
+const actor={id:'manager',role:'admin',managementEnabled:true,isActive:true,permissions:['employees.view','tasks.view'].map(permissionKey=>({permissionKey,isGranted:true})),accessScopes:[{scopeType:'departments',departmentId:'a'}]};
+beforeEach(()=>{vi.resetAllMocks();vi.useFakeTimers();vi.setSystemTime(new Date('2026-09-13T12:00:00Z'));m.users.mockResolvedValue([{id:'one',name:'Employee One',department:{id:'a',name:'Department A'}}]);m.attendance.mockResolvedValue([]);m.tasks.mockResolvedValue([{id:'task-1',userId:'one',user:{id:'one',name:'Employee One',avatarUrl:null},departmentId:'a',department:{id:'a',name:'Department A'},taskTitle:'First task',taskDescription:null,projectName:'Project A',clientName:null,dueAt:new Date('2026-09-12T12:00:00Z'),estimatedMinutes:120,checklist:[],planningVersion:0,priority:'high',planDate:new Date('2026-09-12'),createdAt:new Date('2026-09-12'),updatedAt:new Date('2026-09-13'),updates:[{reportDate:new Date('2026-09-13'),updatedAt:new Date('2026-09-13'),status:'in_progress',trackedMinutes:45}]}]);});
+describe('Dashboard source of truth',()=>{
+ it('filters database queries with the granted employee and task scope',async()=>{const data=await dashboardData(actor,new URLSearchParams());expect(m.users.mock.calls[0][0].where.AND[0]).toEqual({OR:[{departmentId:'a'}]});expect(m.tasks.mock.calls[0][0].where.user).toEqual({OR:[{departmentId:'a'}]});expect(data.kpis).toMatchObject({employees:1,tasks:1,inProgress:1,overdue:1});expect(data.employees[0].trackedMinutes).toBe(45);});
+ it('never queries attendance without its separate permission',async()=>{const data=await dashboardData(actor,new URLSearchParams());expect(m.attendance).not.toHaveBeenCalled();expect(data.attendanceAccess).toBe(false);expect(data.live).toEqual([]);});
+ it('derives KPI, employee and department totals from the same filtered task rows',async()=>{const data=await dashboardData(actor,new URLSearchParams({priority:'low'}));expect(data.taskRows).toEqual([]);expect(data.kpis.tasks).toBe(0);expect(data.employees[0].assigned).toBe(0);expect(data.departments[0].assigned).toBe(0);});
+ it('a forged employee filter never adds a user outside the scoped directory',async()=>{await dashboardData(actor,new URLSearchParams({userId:'outside'}));expect(m.tasks.mock.calls[0][0].where.userId).toEqual({in:[]});});
+ it('fails closed when management is disabled',async()=>{await expect(dashboardData({...actor,managementEnabled:false},new URLSearchParams())).rejects.toThrow();expect(m.users).not.toHaveBeenCalled();});
+ it('does not query tasks when only employee names have been granted',async()=>{const data=await dashboardData({...actor,permissions:[{permissionKey:'employees.view',isGranted:true}]},new URLSearchParams());expect(m.tasks).not.toHaveBeenCalled();expect(data.taskAccess).toBe(false);});
+ it('treats completed past-due tasks as completed, not overdue',async()=>{const rows=await m.tasks();rows[0].updates[0].status='done';m.tasks.mockResolvedValue(rows);const data=await dashboardData(actor,new URLSearchParams());expect(data.kpis).toMatchObject({completed:1,overdue:0});expect(data.taskRows[0].progress).toBe(100);});
+});

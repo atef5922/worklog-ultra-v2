@@ -105,9 +105,9 @@ function attendanceTone(status?: string | null) {
 }
 
 function roleLabel(role: string) {
-  if (role === "manager") return "Team Head";
-  if (role === "admin") return "CEO/Admin";
-  if (role === "hr") return "HR";
+  if (role === "team_head") return "Team Head";
+  if (role === "super_admin") return "CEO/Admin";
+  if (role === "admin") return "HR";
   return "Employee";
 }
 

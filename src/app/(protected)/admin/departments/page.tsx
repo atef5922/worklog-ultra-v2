@@ -2,7 +2,7 @@ import { DepartmentsManager } from "@/components/admin/departments-manager";
 import { canManageDepartments } from "@/lib/auth/permissions";
 import { requireUser } from "@/lib/auth/server";
 import { db } from "@/lib/db";
-import { getDepartments } from "@/lib/worklog";
+import { departmentScope, employeeScope } from '@/lib/auth/policy';
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -15,9 +15,9 @@ export default async function AdminDepartmentsPage() {
   }
 
   const [departments, users] = await Promise.all([
-    getDepartments(),
+    db.department.findMany({ where: departmentScope(user,'departments.manage'), orderBy:{name:'asc'} }),
     db.user.findMany({
-      where: { isActive: true },
+      where: { AND:[{isActive:true},employeeScope(user,'departments.manage')] },
       select: {
         departmentId: true,
         role: true,
@@ -34,7 +34,7 @@ export default async function AdminDepartmentsPage() {
           id: department.id,
           name: department.name,
           memberCount: departmentUsers.length,
-          teamHeadCount: departmentUsers.filter((user) => user.role === "manager").length,
+          teamHeadCount: departmentUsers.filter((user) => user.role === "team_head").length,
         };
       })}
     />

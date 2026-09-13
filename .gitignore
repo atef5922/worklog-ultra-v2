@@ -68,3 +68,9 @@ next-env.d.ts
 # Screenshot monitoring bytes. Deliberately outside public/ so nothing here is
 # ever served statically — reads go through the authorised image route only.
 /.screenshot-storage/
+
+# Local database safety backups; contain private employee records.
+/.local-backups/
+
+# Generated PDF validation artifacts
+/tmp/pdfs/

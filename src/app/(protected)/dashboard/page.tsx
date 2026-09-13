@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { CalendarCheck2, Check, CheckCircle2, ClipboardList, Clock3, PlayCircle, TimerReset } from "lucide-react";
 import { PanelHeader } from "@/components/dashboard/panel-header";
 import { DashboardKpiCards, type DashboardKpiCard } from "@/components/dashboard/dashboard-kpi-cards";
@@ -100,7 +99,7 @@ function formatTimeOnly(value?: Date | null) {
 
 function getMotivationalMessage(input: {
   name: string;
-  role: "employee" | "hr" | "manager" | "admin";
+  role: import("@/lib/auth/roles").AppRole;
   plannedTasks: number;
   completedTasks: number;
   pendingTasks: number;
@@ -184,7 +183,7 @@ export default async function DashboardPage() {
     trackedMinutes: workedMinutes,
   });
   const isTenderDepartment = isTenderDepartmentName(user.department?.name);
-  const isEmployeeDashboard = user.role === "employee";
+  const isEmployeeDashboard = true;
   const taskPercentage = (count: number) =>
     plannedTasks ? Math.round((count / plannedTasks) * 100) : 0;
 
@@ -402,11 +401,10 @@ export default async function DashboardPage() {
         tasks={workPlanTasks}
         trailingCard={
           isEmployeeDashboard ? (
-            <Link
-              className="group relative flex min-h-[4rem] min-w-0 items-center gap-2 overflow-hidden rounded-[0.875rem] border border-[#d5f7e9] bg-white p-2 text-left transition hover:-translate-y-0.5 sm:rounded-[1rem]"
+            <div
+              className="group relative flex min-h-[4rem] min-w-0 items-center gap-2 overflow-hidden rounded-[0.875rem] border border-[#d5f7e9] bg-white p-2 text-left sm:rounded-[1rem]"
               data-dashboard-card
-              href="/dashboard/attendance"
-              title="Attendance - View details"
+              title="Today's attendance status"
             >
               <div className="absolute inset-x-0 top-0 h-1 bg-[#17b26a]" />
               <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-[0.625rem] bg-[#e8fbf4] text-[#0f8f68]">
@@ -432,7 +430,7 @@ export default async function DashboardPage() {
                   {attendanceStatusLabel}
                 </p>
               </div>
-            </Link>
+            </div>
           ) : null
         }
       />

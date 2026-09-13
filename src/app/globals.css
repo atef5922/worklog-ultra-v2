@@ -9,11 +9,10 @@
      value is set alongside the fluid scale below. */
   --topbar-height: 3.125rem;
   /*
-   * Rail width, in a variable because the collapse toggle swaps it. 12.1528rem
-   * is 175px at the reference viewport; collapsed is 60px, which holds a 20px
-   * icon with room to centre it.
+   * The expanded rail accommodates management labels without truncating them.
+   * The collapsed rail retains its original width and stable icon lane.
    */
-  --sidebar-width-expanded: 12.1528rem;
+  --sidebar-width-expanded: 15.5rem;
   --sidebar-width: var(--sidebar-width-expanded);
   --sidebar-width-collapsed: 4.1667rem;
   --sidebar-visual-width: var(--sidebar-width);
@@ -527,17 +526,98 @@ html[data-theme="dark"] .dashboard-workplan-table-scroll .task-btn-primary:hover
   color: #c6f5df;
 }
 
-/* The rail is navy in both themes, so the default slate thumb would vanish. */
-.dashboard-sidebar .dashboard-scroll-area {
-  scrollbar-color: rgba(226, 236, 255, 0.26) transparent;
+/* Sidebar sizing is independent of the content area's scrolling. Rows fit the
+   available height; extremely short screens use a next-page control, never a
+   hidden scrollbar or unreachable Settings/Log Out actions. */
+.sidebar-navigation-region {
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: 0.65rem;
+  overflow: clip;
 }
 
-.dashboard-sidebar .dashboard-scroll-area::-webkit-scrollbar-thumb {
-  background: rgba(226, 236, 255, 0.26);
+.sidebar-navigation {
+  display: grid;
+  flex: 1 1 0%;
+  min-height: 0;
+  grid-template-rows: repeat(var(--sidebar-visible-rows), minmax(0, 1fr));
+  gap: 2px;
+  max-height: calc(var(--sidebar-visible-rows) * (var(--sidebar-nav-row-height) + 2px) - 2px);
+  overflow: clip;
 }
 
-.dashboard-sidebar .dashboard-scroll-area::-webkit-scrollbar-thumb:hover {
-  background: rgba(226, 236, 255, 0.44);
+.sidebar-navigation > div {
+  min-height: 0;
+  min-width: 0;
+}
+
+.sidebar-navigation [data-sidebar-row] {
+  height: 100%;
+}
+
+.sidebar-content [data-sidebar-row] {
+  white-space: nowrap;
+  overflow: hidden;
+  border-radius: 0.65rem;
+}
+
+.sidebar-content [data-sidebar-row] > svg {
+  flex-shrink: 0;
+}
+
+.sidebar-content [data-sidebar-label] {
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+
+.sidebar-content [data-sidebar-row]:focus-visible {
+  outline: 2px solid #b4c7ff;
+  outline-offset: -2px;
+}
+
+.sidebar-footer {
+  display: grid;
+  flex-shrink: 0;
+  gap: 2px;
+  padding-top: 8px;
+}
+
+.sidebar-footer [data-sidebar-row] {
+  height: 40px;
+}
+
+.sidebar-navigation-pager {
+  display: flex;
+  flex-shrink: 0;
+  height: 36px;
+  padding-top: 4px;
+  margin-top: auto;
+}
+
+.sidebar-navigation-pager [data-sidebar-row] {
+  height: 32px;
+}
+
+.sidebar-content[data-sidebar-mobile="true"] {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.sidebar-content[data-sidebar-mobile="true"] .sidebar-footer [data-sidebar-row] {
+  height: 44px;
+}
+
+.sidebar-content[data-sidebar-mobile="true"] .sidebar-navigation-pager {
+  height: 48px;
+}
+
+.sidebar-content[data-sidebar-mobile="true"] .sidebar-navigation-pager [data-sidebar-row] {
+  height: 44px;
+}
+
+.sidebar-content[data-sidebar-mobile="true"] [data-sidebar-label] {
+  overflow: hidden;
 }
 
 /*

@@ -20,7 +20,7 @@ function getDepartmentIcon(name: string) {
 
   if (lowered.includes("account") || lowered.includes("finance")) return Landmark;
   if (lowered.includes("e-commerce") || lowered.includes("sales")) return ShoppingBag;
-  if (lowered.includes("hr")) return Users2;
+  if (lowered.includes("admin")) return Users2;
   if (lowered.includes("it") || lowered.includes("technical") || lowered.includes("development")) return Code2;
   if (lowered.includes("operation")) return Settings2;
   if (lowered.includes("purchase") || lowered.includes("procurement")) return PackageCheck;

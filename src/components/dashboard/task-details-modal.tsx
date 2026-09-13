@@ -243,7 +243,7 @@ export function TaskDetailsModal({
             <Dialog.Close asChild>
               <button
                 aria-label="Close task details"
-                className="absolute right-4 top-4 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                className="absolute right-4 top-4 z-20 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
                 type="button"
               >
                 <X className="h-4 w-4" />

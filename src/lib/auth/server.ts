@@ -2,7 +2,7 @@ import { UserRole } from "@prisma/client";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { canAccessTeamAnalytics, routeByRole } from "@/lib/auth/roles";
+import { canAccessAttendancePage, canAccessTeamAnalytics, routeByRole } from "@/lib/auth/roles";
 import { verifySessionToken } from "@/lib/auth/session";
 
 export async function getServerAuthContext() {
@@ -17,6 +17,7 @@ export async function getServerAuthContext() {
     const session = await db.userSession.findFirst({
       where: {
         sessionId: payload.sessionId,
+        userId: payload.userId,
         revokedAt: null,
         expiresAt: { gt: new Date() },
       },
@@ -24,6 +25,10 @@ export async function getServerAuthContext() {
         user: {
           include: {
             department: true,
+            permissions: true,
+            accessScopes: true,
+            ledTeams: { select: { id: true } },
+            team: true,
           },
         },
       },
@@ -53,10 +58,20 @@ export async function requireEmployee() {
   return requireUser();
 }
 
+export async function requireAttendancePageAccess() {
+  const user = await requireUser();
+
+  if (!canAccessAttendancePage(user.role)) {
+    redirect(routeByRole());
+  }
+
+  return user;
+}
+
 export async function requireAdminOrManager() {
   const user = await requireUser();
 
-  if (user.role !== UserRole.admin && user.role !== UserRole.manager) {
+  if (user.role !== UserRole.super_admin) {
     redirect(routeByRole());
   }
 
@@ -66,7 +81,7 @@ export async function requireAdminOrManager() {
 export async function requireManager() {
   const user = await requireUser();
 
-  if (user.role !== UserRole.manager) {
+  if (user.role !== UserRole.super_admin) {
     redirect(routeByRole());
   }
 

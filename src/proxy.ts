@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
-const protectedPrefixes = ["/dashboard", "/admin"];
+const protectedPrefixes = ["/dashboard", "/admin", "/management"];
 
 function isProtectedPath(pathname: string) {
   return pathname === "/" || protectedPrefixes.some((prefix) => pathname.startsWith(prefix));

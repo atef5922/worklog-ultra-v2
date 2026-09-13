@@ -179,14 +179,39 @@ const SCHEMA_PATCHES = [
       "SELECT 1 FROM information_schema.tables WHERE table_name = 'attendance_work_sessions'",
     file: "attendance-sessions-schema.sql",
   },
+  {
+    label: "management access and roles",
+    check: "SELECT 1 WHERE EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='management_enabled') AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='task_timeline_entries')",
+    backupFirst: true,
+    file: "management-access-schema.sql",
+  },
+  {
+    label: "management dashboard planning and presence",
+    check: "SELECT 1 WHERE EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='daily_tasks' AND column_name='planning_version') AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='employee_presence')",
+    backupFirst: true,
+    file: "management-dashboard-schema.sql",
+  },
 ];
 
 async function applyPendingSchemaPatches(paths, env) {
+  let upgradeBackupCreated = false;
   for (const patch of SCHEMA_PATCHES) {
     const alreadyApplied = await runProcess(paths.psql, ["-d", "worklog_ultra", "-tAc", patch.check], { env })
       .then(({ stdout }) => stdout.trim() === "1")
       .catch(() => false);
     if (alreadyApplied) continue;
+
+    if (patch.backupFirst && !upgradeBackupCreated) {
+      const directory = path.join(path.dirname(paths.data), "schema-backups");
+      await fsp.mkdir(directory, {recursive:true});
+      const backup = path.join(directory, "before-management-" + new Date().toISOString().replace(/[:.]/g,"-") + ".dump");
+      const bin = path.dirname(paths.psql);
+      await runProcess(path.join(bin,"pg_dump.exe"), ["-d","worklog_ultra","--format=custom","--no-owner","--no-acl","--file",backup], {env});
+      const verified = await runProcess(path.join(bin,"pg_restore.exe"), ["--list",backup], {env});
+      if (!verified.stdout.includes("TABLE DATA")) throw new Error("Management schema backup could not be verified.");
+      upgradeBackupCreated = true;
+      writeDesktopLog("Verified pre-upgrade database backup: " + backup);
+    }
 
     writeDesktopLog(`applying schema patch: ${patch.label}`);
     await runProcess(paths.psql, ["-d", "worklog_ultra", "-v", "ON_ERROR_STOP=1", "-f", path.join(process.resourcesPath, patch.file)], { env });

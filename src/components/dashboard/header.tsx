@@ -476,14 +476,7 @@ export function DashboardHeader({
       className="dashboard-topbar sticky top-0 z-20 flex shrink-0 items-center justify-between gap-3 px-3 sm:px-4 xl:px-6 2xl:px-7"
       data-page-section
     >
-      <MobileSidebar
-        user={{
-          name: user.name,
-          role: user.role,
-          designation: user.designation,
-          avatarUrl: user.avatarUrl,
-        }}
-      />
+      <MobileSidebar user={user.sidebarUser} />
       <div className="ml-auto flex min-w-0 max-w-full items-center justify-end gap-2 sm:gap-3 lg:gap-4">
         <div className="hidden items-center gap-2 text-[var(--foreground)] md:flex">
           <Clock3 className="h-4 w-4 shrink-0 text-[var(--muted-foreground)]" />

@@ -451,6 +451,7 @@ export function DashboardTaskTimerAction({
       runningStartedAt: timestampIso,
     };
 
+    if (!await persistUpdate(nextSnapshot, {refresh:true,successMessage:'Task timer started.'})) return;
     setStatus(nextSnapshot.status);
     setTrackedMinutes(nextSnapshot.trackedMinutes);
     setTrackedSeconds(nextTrackedSeconds);
@@ -461,10 +462,6 @@ export function DashboardTaskTimerAction({
     writeTaskTimerSnapshot(reportDate, taskId, nextSnapshot);
     // Refresh like stop does: the task just moved to "in progress", and the
     // dashboard counters that show it are rendered on the server.
-    await persistUpdate(nextSnapshot, {
-      refresh: true,
-      successMessage: "Task timer started.",
-    });
   }
 
   async function stopTimerAt(timestampIso: string, successMessage: string) {
@@ -487,6 +484,7 @@ export function DashboardTaskTimerAction({
       runningStartedAt: "",
     };
 
+    if (!await persistUpdate(nextSnapshot, {refresh:true,successMessage})) return;
     setStatus("in_progress");
     setTrackedMinutes(nextTrackedMinutes);
     setTrackedSeconds(liveSecondsAtCutoff);
@@ -495,7 +493,6 @@ export function DashboardTaskTimerAction({
     setRunningStartedAt("");
 
     writeTaskTimerSnapshot(reportDate, taskId, nextSnapshot);
-    await persistUpdate(nextSnapshot, { refresh: true, successMessage });
   }
 
   async function pauseTimer() {

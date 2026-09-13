@@ -426,7 +426,7 @@ export function HistoryTable({
   initialRequestId,
 }: {
   history: HistoryItem[];
-  role: "employee" | "hr" | "manager" | "admin";
+  role: "employee" | "admin" | "team_head" | "moderator" | "super_admin";
   pendingApprovals: PendingRequest[];
   mode?: "history" | "requests";
   initialTaskId?: string;
@@ -732,7 +732,7 @@ export function HistoryTable({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
-      {!(mode === "requests" && role === "manager") ? (
+      {!(mode === "requests" && role === "team_head") ? (
         /* Both axes declared: `overflow-x-auto` alone makes the browser compute
            overflow-y to auto too, which is where the vertical scrollbar down the
            right of the table came from. Paging handles length now. */
@@ -912,7 +912,7 @@ export function HistoryTable({
         </div>
       ) : null}
 
-      {!(mode === "requests" && role === "manager") && totalPages > 1 ? (
+      {!(mode === "requests" && role === "team_head") && totalPages > 1 ? (
         <div className="flex shrink-0 items-center justify-between gap-2">
           <p className="font-mono text-[0.68rem] font-semibold tabular-nums text-[var(--muted-foreground)]">
             {firstIndex + 1}-{firstIndex + pagedHistory.length} of {visibleHistory.length}

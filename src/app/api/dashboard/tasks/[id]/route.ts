@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { UserRole } from "@prisma/client";
+import { taskLifecycle } from '@/lib/management/task-lifecycle';
+import { personalTaskScope } from "@/lib/auth/policy";
 import { apiError, apiSuccess } from "@/lib/api";
 import { requireUser } from "@/lib/auth/server";
 import { db } from "@/lib/db";
@@ -21,22 +22,7 @@ const TASK_ACTIONS = [
 ] as const;
 
 function buildTaskVisibilityWhere(actor: Awaited<ReturnType<typeof requireUser>>) {
-  if (actor.role === UserRole.employee) {
-    return { userId: actor.id };
-  }
-
-  if (actor.role === UserRole.manager) {
-    return actor.departmentId
-      ? {
-          OR: [
-            { userId: actor.id },
-            { departmentId: actor.departmentId },
-          ],
-        }
-      : { userId: actor.id };
-  }
-
-  return {};
+  return personalTaskScope(actor);
 }
 
 async function clearAutoContinuationTask(task: {
@@ -58,8 +44,8 @@ async function clearAutoContinuationTask(task: {
     return;
   }
 
-  await db.dailyTask.delete({
-    where: { id: existingCarryForward.id },
+  await db.dailyTask.deleteMany({
+    where: { id: existingCarryForward.id, assignedBy:null, updates:{none:{}}, activityEvents:{none:{}}, timelineEntries:{none:{}}, editRequests:{none:{}} },
   });
 }
 
@@ -72,102 +58,7 @@ async function findVisibleTask(id: string, actor: Awaited<ReturnType<typeof requ
   });
 }
 
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const user = await requireUser();
-  const { id } = await params;
-  const body = await request.json();
-
-  const task = await findVisibleTask(id, user);
-
-  if (!task) {
-    return apiError("Task not found.", 404);
-  }
-
-  const latestUpdate = await db.dailyTaskUpdate.findFirst({
-    where: { dailyTaskId: id },
-    orderBy: [{ reportDate: "desc" }, { updatedAt: "desc" }],
-    select: { status: true },
-  });
-
-  if (latestUpdate?.status === "done") {
-    return apiError("Reopen the completed task before editing it.", 409);
-  }
-
-  if (user.role === UserRole.employee && task.assignedBy) {
-    return apiError(
-      "Assigned task details are read-only. Contact the task assigner.",
-      403,
-    );
-  }
-
-  const hasTitle = Object.prototype.hasOwnProperty.call(body, "taskTitle");
-  const hasDescription = Object.prototype.hasOwnProperty.call(body, "taskDescription");
-  const hasPriority = Object.prototype.hasOwnProperty.call(body, "priority");
-
-  if (!hasTitle && !hasDescription && !hasPriority) {
-    return apiError("Choose at least one task field to update.");
-  }
-
-  const taskTitle = hasTitle && typeof body.taskTitle === "string" ? body.taskTitle.trim() : null;
-  if (hasTitle && (!taskTitle || taskTitle.length < 3)) {
-    return apiError("Task title must be at least 3 characters.");
-  }
-
-  if (hasDescription && typeof body.taskDescription !== "string") {
-    return apiError("Task description is invalid.");
-  }
-
-  if (
-    hasPriority &&
-    body.priority !== "low" &&
-    body.priority !== "normal" &&
-    body.priority !== "high" &&
-    body.priority !== "critical"
-  ) {
-    return apiError("Task priority is invalid.");
-  }
-
-  if (taskTitle) {
-    const duplicate = await db.dailyTask.findFirst({
-      where: {
-        id: { not: id },
-        userId: task.userId,
-        planDate: task.planDate,
-        taskTitle: { equals: taskTitle, mode: "insensitive" },
-      },
-      select: { id: true },
-    });
-
-    if (duplicate) {
-      return apiError("A task with this title already exists for that day.");
-    }
-  }
-
-  const updatedTask = await db.dailyTask.update({
-    where: { id },
-    data: {
-      ...(taskTitle ? { taskTitle } : {}),
-      ...(hasDescription
-        ? {
-            taskDescription:
-              replaceReadableTaskDescription(task.taskDescription, body.taskDescription) || null,
-          }
-        : {}),
-      ...(hasPriority ? { priority: body.priority } : {}),
-    },
-    select: {
-      id: true,
-      taskTitle: true,
-      taskDescription: true,
-      priority: true,
-    },
-  });
-
-  return apiSuccess({ message: "Task updated successfully.", task: updatedTask });
-}
+export async function PATCH(request:NextRequest,{params}:{params:Promise<{id:string}>}){const {editPersonalTask}=await import('@/lib/management/personal-task-edit');return editPersonalTask(request,(await params).id);}
 
 export async function POST(
   request: NextRequest,
@@ -177,6 +68,8 @@ export async function POST(
   const { id } = await params;
   const body = await request.json().catch(() => ({}));
   const action = typeof body?.action === "string" ? body.action : "";
+  if (['complete_task','reopen_task'].includes(action)) return taskLifecycle(new Request(request.url,{method:'POST',headers:request.headers,body:JSON.stringify(body)}),id);
+  if (['restore_to_dashboard','move_to_history'].includes(action)) return apiError('Use Done or reason-required Reopen from the work plan. History is read-only.',400);
   const actionReportDate =
     typeof body?.reportDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.reportDate)
       ? new Date(body.reportDate)
@@ -662,9 +555,10 @@ export async function POST(
 
   if (action === "clear_continuation") {
     if (existingCarryForward) {
-      await db.dailyTask.delete({
-        where: { id: existingCarryForward.id },
+      const removed = await db.dailyTask.deleteMany({
+        where: { id: existingCarryForward.id, assignedBy:null, updates:{none:{}}, activityEvents:{none:{}}, timelineEntries:{none:{}}, editRequests:{none:{}} },
       });
+      if (!removed.count) return apiError('Recorded continuation tasks cannot be deleted.',409);
     }
 
     return apiSuccess({ message: "Continuation cleared." });
@@ -711,11 +605,13 @@ export async function DELETE(
     return apiError("Task not found.", 404);
   }
 
-  await db.$transaction([
-    db.dailyTaskUpdate.deleteMany({ where: { dailyTaskId: id } }),
-    db.reportEditRequest.deleteMany({ where: { dailyTaskId: id } }),
-    db.dailyTask.delete({ where: { id } }),
-  ]);
+  // Only untouched drafts may be deleted. Completed/reopened work is evidence.
+  const deleted = await db.dailyTask.deleteMany({ where: {
+    id, userId: user.id, assignedBy: null,
+    updates: { none: {} }, activityEvents: { none: {} },
+    editRequests: { none: {} }, timelineEntries: { none: {} },
+  } });
+  if (!deleted.count) return apiError("Recorded or assigned tasks cannot be deleted. Their history is permanent.", 409);
 
   return apiSuccess({ message: "Task deleted successfully." });
 }

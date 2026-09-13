@@ -55,18 +55,20 @@ export function DashboardWorkspaceModal({
   canEditReport,
   assignableUsers,
   currentUserId,
+  planOnly = false,
 }: {
   departments: Department[];
   initialTasks: InitialTask[];
   suggestions: Suggestion[];
   userDepartmentId?: string | null;
   isTenderDepartment?: boolean;
-  role: "employee" | "hr" | "manager" | "admin";
+  role: "employee" | "admin" | "team_head" | "moderator" | "super_admin";
   reportTasks: ReportTask[];
   reportDate: string;
   canEditReport: boolean;
   assignableUsers: AssignableUser[];
   currentUserId: string;
+  planOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"plan" | "tracker">("plan");
@@ -102,10 +104,12 @@ export function DashboardWorkspaceModal({
               </span>
               <div className="min-w-0">
                 <Dialog.Title className="text-base font-bold text-[var(--foreground)]">
-                  Today&apos;s Workspace
+                  {planOnly ? "Add Today's Task" : "Today's Workspace"}
                 </Dialog.Title>
                 <p className="truncate text-xs text-[var(--muted-foreground)]">
-                  Plan tasks or update today&apos;s tracked work from one place.
+                  {planOnly
+                    ? "Create a task for yourself or assign one to a teammate."
+                    : "Plan tasks or update today's tracked work from one place."}
                 </p>
               </div>
             </div>
@@ -120,7 +124,7 @@ export function DashboardWorkspaceModal({
             </Dialog.Close>
           </div>
 
-          <div className="flex items-center gap-2 border-b border-[var(--panel-border)] px-4 py-2">
+          {!planOnly ? <div className="flex items-center gap-2 border-b border-[var(--panel-border)] px-4 py-2">
             <button
               className={`inline-flex h-8 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition ${
                 activeTab === "plan"
@@ -145,10 +149,10 @@ export function DashboardWorkspaceModal({
               <Clock3 className="h-3.5 w-3.5" />
               Time Tracker
             </button>
-          </div>
+          </div> : null}
 
           <div className="px-4 py-3">
-            {activeTab === "plan" ? (
+            {planOnly || activeTab === "plan" ? (
               <PlanForm
                 key={planResetToken}
                 assignableUsers={assignableUsers}

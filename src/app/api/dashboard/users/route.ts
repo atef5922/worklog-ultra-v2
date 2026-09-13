@@ -1,13 +1,15 @@
 import { apiSuccess } from "@/lib/api";
 import { requireUser } from "@/lib/auth/server";
+import { assigneeScope } from "@/lib/auth/policy";
 import { db } from "@/lib/db";
 
 export async function GET() {
-  await requireUser();
+  const actor = await requireUser();
 
   const users = await db.user.findMany({
     where: {
       isActive: true,
+      AND: [assigneeScope(actor)],
     },
     include: {
       department: true,

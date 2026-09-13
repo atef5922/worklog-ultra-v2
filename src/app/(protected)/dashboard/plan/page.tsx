@@ -1,20 +1,72 @@
 import { ClipboardList } from "lucide-react";
+import { DashboardWorkspaceModal } from "@/components/dashboard/dashboard-workspace-modal";
+import { DashboardWorkPlanSection } from "@/components/dashboard/dashboard-work-plan-table";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { PlanForm } from "@/components/dashboard/plan-form";
 import { requireEmployee } from "@/lib/auth/server";
-import { getAssignableUsers, getDepartments, getPlanSuggestions } from "@/lib/worklog";
-import { isTenderDepartmentName } from "@/lib/utils";
+import { canUserEditReportDate, getAssignableUsers, getCurrentUserAttendanceSnapshot, getDepartments, getPlanSuggestions, getPlanWithReports } from "@/lib/worklog";
+import { isTenderDepartmentName, toDateOnly } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+function formatDashboardDate(value: Date) {
+  return new Intl.DateTimeFormat("en-BD", {
+    timeZone: "Asia/Dhaka",
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(value);
+}
+
 export default async function PlanPage() {
   const user = await requireEmployee();
-  const isTenderDepartment = isTenderDepartmentName(user.department?.name);
-  const [departments, suggestions, assignableUsers] = await Promise.all([
+  const today = new Date();
+  const [tasks, attendance, departments, suggestions, assignableUsers] = await Promise.all([
+    getPlanWithReports(user.id, today, { includeAssigned: true, includeCarryOver: true }),
+    getCurrentUserAttendanceSnapshot(user.id),
     getDepartments(),
     getPlanSuggestions(user.id, user.departmentId),
     getAssignableUsers(),
   ]);
+  const editAccess = await canUserEditReportDate(
+    { id: user.id, role: user.role },
+    today,
+    tasks.map((task) => task.id),
+  );
+  const attendanceRunning = Boolean(attendance?.workSessions.some((session) => !session.endedAt));
+  const isTenderDepartment = isTenderDepartmentName(user.department?.name);
+  const workPlanTasks = tasks.map((task) => ({
+    id: task.id,
+    taskTitle: task.taskTitle,
+    taskDescription: task.taskDescription,
+    priority: task.priority,
+    planDate: toDateOnly(task.planDate),
+    assignedBy: task.assignedBy,
+    userId: task.userId,
+    departmentName: task.department?.name ?? "General",
+    createdAt: task.createdAt.toISOString(),
+    updates: task.updates.map((update) => ({
+      status: update.status,
+      note: update.note,
+      trackedMinutes: update.trackedMinutes,
+      actualStart: update.actualStart?.toISOString() ?? null,
+      actualEnd: update.actualEnd?.toISOString() ?? null,
+      reportDate: toDateOnly(update.reportDate),
+      updatedAt: update.updatedAt.toISOString(),
+    })),
+    latestReview: task.latestReview
+      ? {
+          id: task.latestReview.id,
+          status: task.latestReview.status,
+          submitNote: task.latestReview.submitNote,
+          reviewNote: task.latestReview.reviewNote,
+          createdAt: task.latestReview.createdAt.toISOString(),
+          reviewedAt: task.latestReview.reviewedAt?.toISOString() ?? null,
+          requestedById: task.latestReview.requestedById,
+          reviewerId: task.latestReview.reviewerId,
+        }
+      : null,
+  }));
 
   return (
     /* One screen. `fitViewport` tells PlanForm to fill the leftover height and
@@ -25,20 +77,33 @@ export default async function PlanPage() {
       data-fit-viewport
     >
       <PageHeader
+        action={
+          <DashboardWorkspaceModal
+            assignableUsers={assignableUsers}
+            canEditReport={editAccess.allowed}
+            currentUserId={user.id}
+            departments={departments}
+            initialTasks={[]}
+            isTenderDepartment={isTenderDepartment}
+            planOnly
+            reportDate={toDateOnly(today)}
+            reportTasks={[]}
+            role={user.role}
+            suggestions={suggestions}
+            userDepartmentId={user.departmentId}
+          />
+        }
         icon={ClipboardList}
-        subtitle="Build today's task list with department-aware entries and clear priorities."
+        subtitle="View and manage every task scheduled for today."
         title="Today's Task"
       />
-      <PlanForm
-        assignableUsers={assignableUsers ?? []}
+      <DashboardWorkPlanSection
+        attendanceRunning={attendanceRunning}
+        canEdit={editAccess.allowed}
         currentUserId={user.id}
-        departments={departments ?? []}
-        fitViewport
-        initialTasks={[]}
-        isTenderDepartment={isTenderDepartment}
-        suggestions={suggestions ?? []}
-        userDepartmentId={user.departmentId}
-        role={user.role}
+        formattedDate={formatDashboardDate(today)}
+        managementView
+        tasks={workPlanTasks}
       />
     </div>
   );

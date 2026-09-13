@@ -1,0 +1,4 @@
+"use client";
+import {useEffect} from 'react';
+import {useRouter} from 'next/navigation';
+export function AccessRefresh({version}:{version:number}){const router=useRouter();useEffect(()=>{let busy=false;async function check(){if(busy||document.visibilityState==='hidden')return;busy=true;try{const res=await fetch('/api/management/session',{cache:'no-store'});if(res.status===401){router.replace('/auth/login');router.refresh();return;}if(res.ok&&(await res.json()).version!==version)router.refresh();}catch{}finally{busy=false;}}const timer=setInterval(check,15000);window.addEventListener('focus',check);document.addEventListener('visibilitychange',check);return()=>{clearInterval(timer);window.removeEventListener('focus',check);document.removeEventListener('visibilitychange',check);};},[version,router]);return null;}

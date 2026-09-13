@@ -87,7 +87,7 @@ export function TaskScreenshotMonitor({ currentUserId }: { currentUserId: string
   // Keep the listener/effect layer mounted: task timers still need to reach the
   // native screenshot bridge. Only the old visual utility strip is removed from
   // the redesigned dashboard.
-  if (pathname === "/dashboard") {
+  if (pathname === "/dashboard" || pathname === "/dashboard/plan") {
     return null;
   }
 

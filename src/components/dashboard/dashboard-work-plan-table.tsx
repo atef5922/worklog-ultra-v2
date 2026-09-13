@@ -1,7 +1,7 @@
 "use client";
 
 import * as Tooltip from "@radix-ui/react-tooltip";
-import { ListChecks, LockKeyhole, RotateCcw, Timer } from "lucide-react";
+import { ListChecks, LockKeyhole, RotateCcw, Search, Timer } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   useCallback,
@@ -86,6 +86,7 @@ type DashboardWorkPlanSectionProps = {
   attendanceRunning: boolean;
   currentUserId: string;
   formattedDate: string;
+  managementView?: boolean;
   onStatsChange?: (stats: {
     plannedTasks: number;
     completedTasks: number;
@@ -139,6 +140,15 @@ function formatDashboardTime(value?: string | null) {
   if (!value) return "--:--";
   const formatted = formatTimeOnlyInDhaka(value);
   return formatted === "Not set" ? "--:--" : formatted;
+}
+
+function formatTaskPlanDate(value: string) {
+  return new Intl.DateTimeFormat("en-BD", {
+    timeZone: "Asia/Dhaka",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(`${toDateOnly(value)}T00:00:00+06:00`));
 }
 
 function upsertTaskDayUpdate(
@@ -359,12 +369,14 @@ export function DashboardWorkPlanSection({
   attendanceRunning,
   currentUserId,
   formattedDate,
+  managementView = false,
   onStatsChange,
 }: DashboardWorkPlanSectionProps) {
   const router = useRouter();
   const [tasks, setTasks] = useState(initialTasks);
   const [selectedFilter, setSelectedFilter] =
     useState<DashboardWorkPlanFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [completeTaskId, setCompleteTaskId] = useState<string | null>(null);
   const [detailsTask, setDetailsTask] = useState<TaskDetails | null>(null);
   const [savingCompletion, setSavingCompletion] = useState(false);
@@ -570,9 +582,31 @@ export function DashboardWorkPlanSection({
     [liveTaskIds, selectedFilter],
   );
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const rowMatchesSearch = useCallback(
+    (task: DashboardWorkPlanTask) => {
+      if (!managementView || !normalizedSearchQuery) return true;
+
+      const searchableText = [
+        task.taskTitle,
+        getReadableTaskDescription(task.taskDescription),
+        task.priority,
+        task.departmentName,
+        task.assignedBy ? "assigned" : "own",
+        isCarriedOverTask(task) ? "carry over" : "today",
+        task.planDate,
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return searchableText.includes(normalizedSearchQuery);
+    },
+    [managementView, normalizedSearchQuery],
+  );
+
   const matchingTasks = useMemo(
-    () => visibleTasks.filter(rowMatchesFilter),
-    [rowMatchesFilter, visibleTasks],
+    () => visibleTasks.filter((task) => rowMatchesFilter(task) && rowMatchesSearch(task)),
+    [rowMatchesFilter, rowMatchesSearch, visibleTasks],
   );
   const serialByTaskId = useMemo(
     () =>
@@ -960,14 +994,28 @@ export function DashboardWorkPlanSection({
                     </span>
                   }
                   icon={ListChecks}
-                  title="Today's Work Plan"
+                  title={managementView ? "Task Management" : "Today's Work Plan"}
                 />
               </div>
-              <div
-                aria-label="Filter today's tasks"
-                className="dashboard-filter-scroll flex min-w-0 items-center gap-1 overflow-x-auto"
-                role="group"
-              >
+              <div className={managementView ? "flex min-w-0 flex-1 flex-col gap-2 min-[1000px]:flex-row min-[1000px]:items-center min-[1000px]:justify-end" : "min-w-0"}>
+                {managementView ? (
+                  <label className="relative block min-w-0 min-[1000px]:w-56">
+                    <span className="sr-only">Search today's tasks</span>
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--muted-foreground)]" />
+                    <input
+                      className="h-8 w-full rounded-xl border border-[var(--panel-border)] bg-[var(--panel-alt)] pl-8 pr-3 text-[0.7rem] text-[var(--foreground)] outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20"
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                      placeholder="Search tasks..."
+                      type="search"
+                      value={searchQuery}
+                    />
+                  </label>
+                ) : null}
+                <div
+                  aria-label="Filter today's tasks"
+                  className="dashboard-filter-scroll flex min-w-0 items-center gap-1 overflow-x-auto"
+                  role="group"
+                >
                 {FILTER_LABELS.map((filter) => {
                   const selected = selectedFilter === filter.key;
                   return (
@@ -991,16 +1039,18 @@ export function DashboardWorkPlanSection({
                     </button>
                   );
                 })}
+                </div>
               </div>
             </div>
           </div>
 
           <div className="dashboard-workplan-table-scroll min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain [scrollbar-gutter:stable]">
-            <table className="w-full min-w-[69.3rem] table-fixed border-separate border-spacing-0">
+            <table className={`w-full table-fixed border-separate border-spacing-0 ${managementView ? "min-w-[78rem]" : "min-w-[69.3rem]"}`}>
               <colgroup>
                 <col className="w-[3rem]" />
                 <col className="w-[11.5rem]" />
                 <col className="w-[15rem]" />
+                {managementView ? <col className="w-[8.7rem]" /> : null}
                 <col className="w-[6rem]" />
                 <col className="w-[7.2rem]" />
                 <col className="w-[8.3rem]" />
@@ -1013,6 +1063,7 @@ export function DashboardWorkPlanSection({
                   <th className={TABLE_HEAD_CLASS} scope="col">SL</th>
                   <th className={TABLE_HEAD_CLASS} scope="col">Title</th>
                   <th className={TABLE_HEAD_CLASS} scope="col">Description</th>
+                  {managementView ? <th className={TABLE_HEAD_CLASS} scope="col">Source / Date</th> : null}
                   <th className={TABLE_HEAD_CLASS} scope="col">Priority</th>
                   <th className={TABLE_HEAD_CLASS} scope="col">Status</th>
                   <th className={TABLE_HEAD_CLASS} scope="col">Start / Pause</th>
@@ -1032,9 +1083,10 @@ export function DashboardWorkPlanSection({
                     Boolean(liveTaskIds[task.id]);
                   const statusMeta = getStatusMeta(status, isLive);
                   const seed = getTaskDaySeed(task);
-                  const matches = rowMatchesFilter(task);
+                  const matches = rowMatchesFilter(task) && rowMatchesSearch(task);
                   const assignedToCurrentUser =
                     Boolean(task.assignedBy) && task.userId === currentUserId;
+                  const carriedOver = isCarriedOverTask(task);
                   const inlineEditable =
                     canEdit && status !== "done" && !assignedToCurrentUser;
                   const openDetails = () =>
@@ -1078,6 +1130,7 @@ export function DashboardWorkPlanSection({
                               value={task.taskTitle}
                             />
                           </div>
+                          {canEdit && status !== 'done' && <a href={`/dashboard/tasks/${task.id}/planning`} className="shrink-0 rounded px-1.5 py-1 text-[0.6rem] font-medium text-indigo-600 hover:bg-indigo-50" title="Project, deadline and checklist">Plan</a>}
                         </div>
                       </td>
                       <td className={TABLE_CELL_CLASS}>
@@ -1093,6 +1146,21 @@ export function DashboardWorkPlanSection({
                           )}
                         />
                       </td>
+                      {managementView ? (
+                        <td className={TABLE_CELL_CLASS}>
+                          <div className="flex min-w-0 flex-wrap items-center gap-1">
+                            <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[0.52rem] font-bold uppercase tracking-[0.06em] ${carriedOver ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-200" : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-400/25 dark:bg-emerald-400/10 dark:text-emerald-200"}`}>
+                              {carriedOver ? "Carry Over" : "Today"}
+                            </span>
+                            <span className={`inline-flex rounded-full border px-1.5 py-0.5 text-[0.52rem] font-semibold ${assignedToCurrentUser ? "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-400/25 dark:bg-indigo-400/10 dark:text-indigo-200" : "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"}`}>
+                              {assignedToCurrentUser ? "Assigned" : "Own"}
+                            </span>
+                          </div>
+                          <p className="mt-1 truncate text-[0.6rem] font-medium text-[var(--muted-foreground)]" title={task.planDate}>
+                            {formatTaskPlanDate(task.planDate)}
+                          </p>
+                        </td>
+                      ) : null}
                       <td className={`${TABLE_CELL_CLASS} text-center`}>
                         {inlineEditable ? (
                           <Select
@@ -1216,9 +1284,11 @@ export function DashboardWorkPlanSection({
                   <tr>
                     <td
                       className="px-6 py-10 text-center text-[0.78rem] font-medium text-[var(--muted-foreground)]"
-                      colSpan={9}
+                      colSpan={managementView ? 10 : 9}
                     >
-                      {visibleTasks.length
+                      {managementView && normalizedSearchQuery
+                        ? `No tasks match "${searchQuery.trim()}".`
+                        : visibleTasks.length
                         ? `No ${FILTER_LABELS.find(
                             (item) => item.key === selectedFilter,
                           )?.label.toLowerCase()} tasks right now.`

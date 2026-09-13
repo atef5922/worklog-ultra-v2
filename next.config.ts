@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  serverExternalPackages: ["pdfkit"],
+  outputFileTracingIncludes: {"/api/**": ["./public/fonts/*.ttf"]},
   // Dev-server origins allowed to open the HMR socket. Without the LAN address
   // here, pages opened from another device render but never hydrate, so nothing
   // on them is clickable. Add your machine's LAN IP when it changes.

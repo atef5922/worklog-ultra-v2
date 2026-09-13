@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { parseApiResponse } from "@/lib/api-client";
+import { requestLogin } from "@/lib/auth/login-request";
 import { cn } from "@/lib/utils";
 import { safeRedirect } from "@/lib/utils";
 
@@ -19,7 +19,11 @@ function getRememberedEmail() {
     return "";
   }
 
-  return window.localStorage.getItem(REMEMBERED_EMAIL_STORAGE_KEY) ?? "";
+  try {
+    return window.localStorage.getItem(REMEMBERED_EMAIL_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
 }
 
 export function LoginForm({ variant = "default" }: { variant?: "default" | "minimal" }) {
@@ -60,16 +64,10 @@ export function LoginForm({ variant = "default" }: { variant?: "default" | "mini
       remember: formData.get("remember") === "on",
     };
 
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const result = await parseApiResponse<{ message: string }>(response, "Login request failed.");
+    const result = await requestLogin(payload);
     setLoading(false);
 
-    if (!response.ok) {
+    if (!result.success) {
       setErrorMessage(result.message);
       toast.error(result.message);
       return;
@@ -81,10 +79,12 @@ export function LoginForm({ variant = "default" }: { variant?: "default" | "mini
       } else {
         void window.worklogDesktop.clearCredentials();
       }
-    } else if (payload.remember) {
-      window.localStorage.setItem(REMEMBERED_EMAIL_STORAGE_KEY, payload.email);
     } else {
-      window.localStorage.removeItem(REMEMBERED_EMAIL_STORAGE_KEY);
+      // Browser storage restrictions must not turn a successful login into a failure.
+      try {
+        if (payload.remember) window.localStorage.setItem(REMEMBERED_EMAIL_STORAGE_KEY, payload.email);
+        else window.localStorage.removeItem(REMEMBERED_EMAIL_STORAGE_KEY);
+      } catch { /* Email persistence is optional. */ }
     }
 
     setErrorMessage("");
@@ -181,7 +181,7 @@ export function LoginForm({ variant = "default" }: { variant?: "default" | "mini
               setRememberMe(nextRememberMe);
 
               if (!nextRememberMe) {
-                window.localStorage.removeItem(REMEMBERED_EMAIL_STORAGE_KEY);
+                try { window.localStorage.removeItem(REMEMBERED_EMAIL_STORAGE_KEY); } catch { /* Optional storage. */ }
                 if (window.worklogDesktop?.isDesktop) void window.worklogDesktop.clearCredentials();
               }
             }}

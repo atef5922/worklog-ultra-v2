@@ -127,7 +127,7 @@ export async function POST(
     });
   }
 
-  if (actor.id !== task.assignedBy && actor.role !== UserRole.admin) {
+  if (actor.id !== task.assignedBy && actor.role !== UserRole.super_admin) {
     return apiError("Only the assigner can review this assignment.", 403);
   }
 

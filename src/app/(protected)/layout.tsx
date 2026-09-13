@@ -7,6 +7,8 @@ import { TaskScreenshotMonitor } from "@/components/dashboard/task-screenshot-mo
 import { WorkspaceNoticeLive } from "@/components/dashboard/workspace-notice-live";
 import { DashboardMotionShell } from "@/components/motion/dashboard-motion-shell";
 import { requireUser } from "@/lib/auth/server";
+import { EmployeePresence } from '@/components/management/employee-presence';
+import { AccessRefresh } from "@/components/management/access-refresh";
 import { roleUiTitle } from "@/lib/auth/roles";
 import { toDateOnly } from "@/lib/utils";
 import type { DashboardHeaderUser, DashboardSidebarUser } from "@/lib/contracts/user";
@@ -34,6 +36,9 @@ export default async function ProtectedLayout({
     getCurrentUserAttendanceSnapshot(user.id),
   ]);
   const sidebarUser: DashboardSidebarUser = {
+    id: user.id,
+    managementEnabled: user.managementEnabled,
+    permissions: user.permissions,
     name: user.name,
     role: user.role,
     designation: user.designation,
@@ -43,6 +48,7 @@ export default async function ProtectedLayout({
     noticeNotifications,
   };
   const headerUser: DashboardHeaderUser = {
+    sidebarUser,
     name: user.name,
     role: user.role,
     roleTitle: roleUiTitle(user.role),
@@ -94,6 +100,8 @@ export default async function ProtectedLayout({
           <DashboardHeader user={headerUser} />
           <main className="flex min-h-0 flex-1 flex-col px-3 py-4 sm:px-4 sm:py-5 xl:px-6 2xl:px-7">
             <AppCloseTimerStop />
+            <AccessRefresh version={user.accessVersion} />
+            <EmployeePresence />
             <AssignmentNotificationLive />
             <TaskTimerAutoCloser />
             <WorkspaceNoticeLive />

@@ -10,9 +10,10 @@ import type { DepartmentOption } from "@/lib/contracts/user";
 
 const ROLE_OPTIONS = [
   { value: "employee", label: "Employee" },
-  { value: "hr", label: "HR" },
-  { value: "manager", label: "Team Head" },
-  { value: "admin", label: "CEO / Admin" },
+  { value: "admin", label: "HR" },
+  { value: "team_head", label: "Team Head" },
+  { value: "moderator", label: "Moderator" },
+  { value: "super_admin", label: "CEO / Admin" },
 ] as const;
 
 export function UserRoleDepartmentEditor({
@@ -31,7 +32,7 @@ export function UserRoleDepartmentEditor({
 }: {
   userId: string;
   userName: string;
-  initialRole: "employee" | "hr" | "manager" | "admin";
+  initialRole: "employee" | "admin" | "team_head" | "moderator" | "super_admin";
   initialDepartmentId?: string | null;
   initialExtraAccess?: string[];
   departments: DepartmentOption[];

@@ -10,10 +10,7 @@ import {
   getNextDhakaMidnightTimestamp,
 } from "@/lib/task-timer-math";
 import { toDateTimeInputValue } from "@/lib/utils";
-import {
-  closeRunningAttendanceForShutdown,
-  retryPendingAttendanceSyncs,
-} from "@/lib/workday-timer-close";
+import { clearPendingAttendanceSyncs } from "@/lib/workday-timer-close";
 
 const TIMER_STORAGE_PREFIX = "task-timer:";
 const PENDING_SYNC_PREFIX = "task-timer-pending-sync:";
@@ -142,11 +139,10 @@ function stopRunningTimersForClose() {
 export function AppCloseTimerStop() {
   useEffect(() => {
     void retryPendingTimerSyncs();
-    void retryPendingAttendanceSyncs();
+    clearPendingAttendanceSyncs();
 
     function handleBeforeUnload() {
       stopRunningTimersForClose();
-      closeRunningAttendanceForShutdown();
     }
 
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -156,7 +152,6 @@ export function AppCloseTimerStop() {
     if (bridge?.isDesktop && bridge.onAppQuit) {
       unsubscribeElectronQuit = bridge.onAppQuit(() => {
         stopRunningTimersForClose();
-        closeRunningAttendanceForShutdown();
       });
     }
 

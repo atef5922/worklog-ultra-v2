@@ -109,7 +109,7 @@ export function PlanForm({
   suggestions?: Suggestion[];
   userDepartmentId?: string | null;
   isTenderDepartment?: boolean;
-  role: "employee" | "hr" | "manager" | "admin";
+  role: "employee" | "admin" | "team_head" | "moderator" | "super_admin";
   assignableUsers: AssignableUser[];
   currentUserId: string;
   clearDraftOnMount?: boolean;
@@ -152,7 +152,7 @@ export function PlanForm({
   );
   const activeDepartmentName =
     departments.find((department) => department.id === activeDepartmentId)?.name ?? "your department";
-  const allowOtherDepartment = role === "admin";
+  const allowOtherDepartment = role === "super_admin";
 
   useEffect(() => {
     if (!clearDraftOnMount || typeof window === "undefined") {

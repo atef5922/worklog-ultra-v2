@@ -238,9 +238,10 @@ export function AssignmentsCenter({
     }
 
     const task = selectedAssignment.task;
-    const reportDate = toDateOnly(task.planDate);
+    const reportDate = toDateOnly();
     const snapshot = readTaskTimerSnapshot(reportDate, task.id);
-    const latest = task.updates[0];
+    const last = task.updates[0];
+    const latest = last?.actualStart && toDateOnly(last.actualStart) !== reportDate && last.status !== 'done' ? undefined : last;
     const trackedSecondsFromSnapshot = Number(snapshot?.trackedSeconds ?? String(Number(snapshot?.trackedMinutes ?? latest?.trackedMinutes ?? 0) * 60));
 
     setWorkStatus(snapshot?.status ?? latest?.status ?? "pending");
@@ -337,7 +338,7 @@ export function AssignmentsCenter({
       return;
     }
 
-    writeTaskTimerSnapshot(toDateOnly(selectedTask.planDate), selectedTask.id, {
+    writeTaskTimerSnapshot(toDateOnly(), selectedTask.id, {
       status: next.status,
       trackedMinutes: next.trackedMinutes,
       trackedSeconds: String(next.trackedSeconds),
@@ -360,17 +361,19 @@ export function AssignmentsCenter({
         : workActualEnd;
 
     setWorkSaving(true);
-    const response = await fetch("/api/dashboard/report", {
+    const response = await fetch(finalStatus === "done" ? `/api/dashboard/tasks/${selectedTask.id}` : "/api/dashboard/report", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        reportDate: toDateOnly(selectedTask.planDate),
+      body: JSON.stringify(finalStatus === 'done' ? {
+        action:'complete_task',completionStatus:'done',completionNote:workNote,trackedMinutes:Number(finalTrackedMinutes),actualStart:workActualStart
+      } : {
+        reportDate: toDateOnly(),
         updates: [
           {
             dailyTaskId: selectedTask.id,
             status: finalStatus,
             note: workNote,
-            completionPercent: finalStatus === "done" ? 100 : 0,
+            completionPercent: 0,
             trackedMinutes: Number(finalTrackedMinutes),
             actualStart: workActualStart,
             actualEnd: finalActualEnd,
@@ -409,69 +412,29 @@ export function AssignmentsCenter({
     return true;
   }
 
-  function startAssignmentTimer() {
-    if (!selectedTask || selectedAssignment?.list !== "assignedToMe" || workSaving) {
-      return;
-    }
-
-    const now = new Date();
-    const startValue = workActualStart || toInputDateTime(now);
-    const nextRunningStartedAt = now.toISOString();
-    setWorkStatus("in_progress");
-    setWorkActualStart(startValue);
-    setWorkActualEnd("");
-    setWorkRunningStartedAt(nextRunningStartedAt);
-    persistWorkSnapshot({
-      status: "in_progress",
-      trackedMinutes: String(Math.floor(workTrackedSeconds / 60)),
-      trackedSeconds: workTrackedSeconds,
-      actualStart: startValue,
-      actualEnd: "",
-      runningStartedAt: nextRunningStartedAt,
-    });
+  async function syncAssignmentTimer(start:string,end:string,seconds:number){
+    if(!selectedTask||workSaving)return false;
+    setWorkSaving(true);
+    try{
+      const response=await fetch('/api/dashboard/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reportDate:toDateOnly(),updates:[{dailyTaskId:selectedTask.id,status:'in_progress',completionPercent:0,trackedMinutes:Math.floor(seconds/60),actualStart:start,actualEnd:end}]})});
+      const result=await response.json();if(!response.ok)throw new Error(result.message);return true;
+    }catch(error){toast.error(error instanceof Error?error.message:'Task timer could not be saved.');return false;}finally{setWorkSaving(false);}
   }
-
-  function pauseAssignmentTimer() {
-    if (!selectedTask || selectedAssignment?.list !== "assignedToMe" || !workRunningStartedAt) {
-      return;
-    }
-
-    const pausedMinutes = String(Math.floor(liveWorkTrackedSeconds / 60));
-    setWorkStatus("in_progress");
-    setWorkTrackedMinutes(pausedMinutes);
-    setWorkTrackedSeconds(liveWorkTrackedSeconds);
-    setWorkRunningStartedAt("");
-    persistWorkSnapshot({
-      status: "in_progress",
-      trackedMinutes: pausedMinutes,
-      trackedSeconds: liveWorkTrackedSeconds,
-      actualStart: workActualStart,
-      actualEnd: "",
-      runningStartedAt: "",
-    });
+  async function startAssignmentTimer() {
+    if (!selectedTask || selectedAssignment?.list !== 'assignedToMe' || workSaving || workStatus==='done') return;
+    const start=workActualStart||toInputDateTime(new Date()),running=new Date().toISOString();
+    if(!await syncAssignmentTimer(start,'',workTrackedSeconds))return;
+    setWorkStatus('in_progress');setWorkActualStart(start);setWorkActualEnd('');setWorkRunningStartedAt(running);
+    persistWorkSnapshot({status:'in_progress',trackedMinutes:String(Math.floor(workTrackedSeconds/60)),trackedSeconds:workTrackedSeconds,actualStart:start,actualEnd:'',runningStartedAt:running});
   }
-
-  function stopAssignmentTimer() {
-    if (!selectedTask || selectedAssignment?.list !== "assignedToMe") {
-      return;
-    }
-
-    const endValue = toInputDateTime(new Date());
-    const stoppedMinutes = String(Math.floor(liveWorkTrackedSeconds / 60));
-    setWorkStatus("in_progress");
-    setWorkTrackedMinutes(stoppedMinutes);
-    setWorkTrackedSeconds(liveWorkTrackedSeconds);
-    setWorkActualEnd(endValue);
-    setWorkRunningStartedAt("");
-    persistWorkSnapshot({
-      status: "in_progress",
-      trackedMinutes: stoppedMinutes,
-      trackedSeconds: liveWorkTrackedSeconds,
-      actualStart: workActualStart,
-      actualEnd: endValue,
-      runningStartedAt: "",
-    });
+  async function pauseAssignmentTimer() {
+    if (!selectedTask || selectedAssignment?.list !== 'assignedToMe' || !workRunningStartedAt || workSaving) return;
+    const end=toInputDateTime(new Date()),seconds=liveWorkTrackedSeconds;
+    if(!await syncAssignmentTimer(workActualStart,end,seconds))return;
+    setWorkStatus('in_progress');setWorkTrackedMinutes(String(Math.floor(seconds/60)));setWorkTrackedSeconds(seconds);setWorkActualEnd(end);setWorkRunningStartedAt('');
+    persistWorkSnapshot({status:'in_progress',trackedMinutes:String(Math.floor(seconds/60)),trackedSeconds:seconds,actualStart:workActualStart,actualEnd:end,runningStartedAt:''});
   }
+  async function stopAssignmentTimer(){await pauseAssignmentTimer();}
 
   async function submitAssignmentWork() {
     if (!selectedTask || selectedAssignment?.list !== "assignedToMe") {

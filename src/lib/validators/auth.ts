@@ -2,7 +2,8 @@ import { z } from "zod";
 
 const emailField = z.string().trim().email("Enter a valid email address.").transform((value) => value.toLowerCase());
 
-export const roleSchema = z.enum(["employee", "hr", "manager", "admin"]);
+// Privileged roles are assigned only by Super Admin, never through signup.
+export const roleSchema = z.enum(["employee"]);
 
 export const registerRoleSchema = z.object({
   role: roleSchema,

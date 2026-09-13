@@ -16,9 +16,6 @@ type Department = { id: string; name: string };
 
 const roleLabels: Record<string, string> = {
   employee: "Employee",
-  hr: "HR",
-  manager: "Team Head",
-  admin: "CEO / Admin",
 };
 
 export function SignupForm({
@@ -36,7 +33,7 @@ export function SignupForm({
   const [showAccessCode, setShowAccessCode] = useState(false);
   const isMinimal = variant === "minimal";
 
-  const requiresDepartment = role !== "admin";
+  const requiresDepartment = role !== "super_admin";
   const requiresCode = role !== "employee";
   const otpLabel = useMemo(() => roleLabels[role], [role]);
 

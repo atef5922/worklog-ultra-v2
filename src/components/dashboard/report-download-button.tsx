@@ -24,7 +24,7 @@ export function ReportDownloadButton({
   fallbackFrom: string;
   fallbackTo: string;
 }) {
-  const handleClick = useCallback(() => {
+  const handleClick = useCallback((format: "pdf" | "xlsx") => {
     const readField = (id: string, fallback: string) => {
       const field = document.getElementById(id);
       const value = field instanceof HTMLInputElement ? field.value.trim() : "";
@@ -37,17 +37,17 @@ export function ReportDownloadButton({
     const from = first <= second ? first : second;
     const to = first <= second ? second : first;
 
-    window.location.href = `/api/dashboard/report/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+    window.location.href = `/api/dashboard/report/download?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&format=${format}`;
   }, [fallbackFrom, fallbackTo, fromInputId, toInputId]);
 
   return (
-    <button
+    <div className="flex items-center gap-1"><button
       className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[var(--panel-border)] bg-[var(--panel)] px-3.5 text-[0.82rem] font-semibold text-[var(--foreground)] transition hover:border-[#4f5ef7]/40 hover:bg-[var(--panel-alt)]"
-      onClick={handleClick}
+      onClick={() => handleClick("xlsx")}
       type="button"
     >
       <Download className="h-3.5 w-3.5" />
-      Download
-    </button>
+      Excel
+    </button><button type="button" onClick={() => handleClick("pdf")} className="inline-flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[var(--panel-border)] bg-[var(--panel)] px-3 text-[0.82rem] font-semibold hover:bg-[var(--panel-alt)]"><Download className="h-3.5 w-3.5" />PDF</button></div>
   );
 }

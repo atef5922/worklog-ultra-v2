@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
   const kind = body.kind as ReminderKind | undefined;
 
   const context = await getServerAuthContext();
-  const isPrivilegedUser = context.user?.role === "manager" || context.user?.role === "admin";
+  const isPrivilegedUser = context.user?.role === "super_admin";
   const hasCronAccess = Boolean(cronKey && authHeader === cronKey);
 
   if (!isPrivilegedUser && !hasCronAccess) {

@@ -1,4 +1,4 @@
-import { UserRole } from "@prisma/client";
+import { personalOrScopedTasks } from "@/lib/auth/policy";
 import { apiError, apiSuccess } from "@/lib/api";
 import { requireUser } from "@/lib/auth/server";
 import { db } from "@/lib/db";
@@ -6,22 +6,7 @@ import { db } from "@/lib/db";
 function buildTaskVisibilityWhere(
   actor: Awaited<ReturnType<typeof requireUser>>,
 ) {
-  if (actor.role === UserRole.employee) {
-    return { userId: actor.id };
-  }
-
-  if (actor.role === UserRole.manager) {
-    return actor.departmentId
-      ? {
-          OR: [
-            { userId: actor.id },
-            { departmentId: actor.departmentId },
-          ],
-        }
-      : { userId: actor.id };
-  }
-
-  return {};
+  return { OR: [personalOrScopedTasks(actor, 'tasks.view'), personalOrScopedTasks(actor, 'history.view')] };
 }
 
 export async function GET(

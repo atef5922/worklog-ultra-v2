@@ -29,14 +29,14 @@ export async function POST(request: NextRequest) {
   }
 
   const payload = parsed.data;
-  const departmentId = payload.departmentId || null;
+  const departmentId = user.departmentId;
   const nextAvatarUrl = sanitizeAvatarUrl(payload.avatarUrl ?? null) || user.avatarUrl || "";
 
   if (roleNeedsDepartment(user.role) && !departmentId) {
     return apiError("Department is required for this account.");
   }
 
-  const canManageCompensation = user.role === "manager" || user.role === "admin";
+  const canManageCompensation = false;
 
   const updatedUser = await db.user.update({
     where: { id: user.id },

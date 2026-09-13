@@ -1,8 +1,10 @@
 import { NextRequest } from "next/server";
+import {createWorkPlan} from '@/lib/management/plan-actions';
 import { z } from "zod";
 import { apiError, apiSuccess } from "@/lib/api";
 import { embedAssignmentAttachmentMeta } from "@/lib/assignment-attachments";
 import { requireEmployee } from "@/lib/auth/server";
+import { assigneeScope } from "@/lib/auth/policy";
 import { db } from "@/lib/db";
 import { saveUploadedFiles } from "@/lib/file-upload";
 import { toDateOnly } from "@/lib/utils";
@@ -36,6 +38,8 @@ export async function POST(request: NextRequest) {
     where: {
       id: parsed.data.assigneeId,
       isActive: true,
+      AND: [assigneeScope(user)],
+      departmentId: parsed.data.departmentId,
     },
     select: {
       id: true,
@@ -77,20 +81,9 @@ export async function POST(request: NextRequest) {
 
   const description = embedAssignmentAttachmentMeta(parsed.data.note ?? "", uploadedAttachments);
 
-  const createdTask = await db.dailyTask.create({
-    data: {
-      userId: parsed.data.assigneeId,
-      departmentId: parsed.data.departmentId,
-      planDate,
-      taskTitle: parsed.data.taskTitle.trim(),
-      taskDescription: description || null,
-      priority: parsed.data.priority,
-      assignedBy: parsed.data.assigneeId !== user.id ? user.id : null,
-    },
-    select: {
-      id: true,
-    },
-  });
+  const createdResponse = await createWorkPlan(new Request(request.url,{method:'POST',headers:{'Content-Type':'application/json',...(request.headers.get('origin')?{origin:request.headers.get('origin')!}:{})},body:JSON.stringify({planDate:toDateOnly(planDate),tasks:[{assigneeId:parsed.data.assigneeId,departmentId:parsed.data.departmentId,taskTitle:parsed.data.taskTitle.trim(),taskDescription:description||'',priority:parsed.data.priority}]})}));
+  if(!createdResponse.ok)return createdResponse;
+  const createdTask = (await createdResponse.json()).tasks[0];
 
   return apiSuccess({
     message: uploadedAttachments.length

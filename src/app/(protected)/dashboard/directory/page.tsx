@@ -1,40 +1,9 @@
-import { DirectoryCenter } from "@/components/dashboard/directory-center";
-import { canAccessWorkMonitor } from "@/lib/auth/permissions";
-import { requireUser } from "@/lib/auth/server";
-import { getWorkspaceDirectoryData } from "@/lib/worklog";
-import { redirect } from "next/navigation";
-
-export const dynamic = "force-dynamic";
-
-export default async function DirectoryPage({
-  searchParams,
-}: {
-  searchParams?: Promise<{ departmentId?: string; userId?: string }>;
-}) {
-  const user = await requireUser();
-  const params = searchParams ? await searchParams : undefined;
-
-  if (!canAccessWorkMonitor(user)) {
-    redirect("/dashboard");
-  }
-
-  const data = await getWorkspaceDirectoryData({
-    role: user.role,
-    departmentId: user.departmentId,
-    scopeToDepartment: user.role === "manager" || user.role === "employee",
-  });
-
-  return (
-    <DirectoryCenter
-      canSwitchDepartment={user.role === "admin"}
-      departments={data.departments ?? []}
-      initialDepartmentId={
-        user.role === "admin"
-          ? params?.departmentId ?? "all"
-          : data.departments[0]?.id
-      }
-      initialUserId={params?.userId}
-      users={data.users ?? []}
-    />
-  );
+import {redirect} from 'next/navigation';
+import {requireUser} from '@/lib/auth/server';
+import {can} from '@/lib/auth/policy';
+export default async function DirectoryPage({searchParams}:{searchParams:Promise<{departmentId?:string;userId?:string}>}){
+ const actor=await requireUser();if(!can(actor,'employees.view'))redirect('/dashboard');
+ const input=await searchParams;const query=new URLSearchParams();
+ if(input.departmentId)query.set('departmentId',input.departmentId);if(input.userId)query.set('userId',input.userId);
+ redirect('/management'+(query.size?'?'+query.toString():''));
 }

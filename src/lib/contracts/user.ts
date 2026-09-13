@@ -77,6 +77,9 @@ export type DashboardAttendanceSnapshot = {
   }>;
 };
 export type DashboardSidebarUser = {
+  id: string;
+  managementEnabled: boolean;
+  permissions: { permissionKey: string; isGranted: boolean }[];
   name: string;
   role: AppRole;
   designation: string | null;
@@ -87,6 +90,7 @@ export type DashboardSidebarUser = {
 };
 
 export type DashboardHeaderUser = {
+  sidebarUser: DashboardSidebarUser;
   name: string;
   role: AppRole;
   roleTitle: string;

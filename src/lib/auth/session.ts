@@ -6,7 +6,7 @@ const SESSION_COOKIE = "worklog_session";
 const DEFAULT_SESSION_MAX_AGE = 60 * 60 * 24;
 const REMEMBERED_SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 
-function useSecureSessionCookie() {
+function shouldUseSecureSessionCookie() {
   return process.env.NODE_ENV === "production" && process.env.WORKLOG_DESKTOP !== "1";
 }
 
@@ -37,24 +37,21 @@ export async function createUserSession({
   const expiresAt = new Date(Date.now() + sessionMaxAge * 1000);
   const cookieStore = await cookies();
 
-  await db.userSession.create({
-    data: {
-      sessionId,
-      userId,
-      expiresAt,
-    },
-  });
-
   const token = await new SignJWT({ sessionId, userId, role, email })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${sessionMaxAge}s`)
     .sign(getSecret());
 
+  // Validate/sign first: a missing secret must not leave an orphan session.
+  await db.userSession.create({
+    data: { sessionId, userId, expiresAt },
+  });
+
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: useSecureSessionCookie(),
+    secure: shouldUseSecureSessionCookie(),
     path: "/",
     expires: rememberMe ? expiresAt : undefined,
   });
@@ -72,7 +69,7 @@ export async function clearUserSession(sessionId?: string) {
   cookieStore.set(SESSION_COOKIE, "", {
     httpOnly: true,
     sameSite: "lax",
-    secure: useSecureSessionCookie(),
+    secure: shouldUseSecureSessionCookie(),
     path: "/",
     expires: new Date(0),
   });

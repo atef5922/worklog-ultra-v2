@@ -39,7 +39,7 @@ const DEPARTMENT_TASK_TEMPLATES: Array<{
     ],
   },
   {
-    matches: ["hr"],
+    matches: ["admin"],
     suggestions: [
       { title: "Review attendance, leave, and employee requests", description: "Check daily people operations queue and resolve pending workforce actions.", priority: "high" },
       { title: "Publish HR updates and policy reminders", description: "Share important internal updates and confirm department visibility.", priority: "normal" },
@@ -112,8 +112,11 @@ export async function getDepartments() {
 }
 
 export async function getAssignableUsers() {
+  const { requireUser } = await import("@/lib/auth/server");
+  const { assigneeScope } = await import("@/lib/auth/policy");
+  const actor = await requireUser();
   const users = await db.user.findMany({
-    where: { isActive: true },
+    where: { AND: [{ isActive: true }, assigneeScope(actor)] },
     include: { department: true },
     orderBy: [{ department: { name: "asc" } }, { name: "asc" }],
   });
@@ -172,7 +175,7 @@ export async function finalizeMissedTasksForUser(userId: string) {
       continue;
     }
 
-    if (latestUpdate?.status === TaskStatus.done || latestUpdate?.completionPercent === 100) {
+    if (latestUpdate?.status === TaskStatus.done) {
       continue;
     }
 
@@ -539,26 +542,7 @@ export async function getDashboardData(userId: string, role: UserRole, departmen
     planDate: { lte: dayEnd },
   };
 
-  const activeStaffWhere =
-    role === UserRole.admin
-      ? {
-          isActive: true,
-          role: {
-            in: [UserRole.employee, UserRole.hr, UserRole.manager],
-          },
-        }
-      : role === UserRole.manager && departmentId
-        ? {
-            isActive: true,
-            departmentId,
-            role: {
-              in: [UserRole.employee, UserRole.hr, UserRole.manager],
-            },
-          }
-        : {
-            isActive: true,
-            id: userId,
-          };
+  const activeStaffWhere = { id: userId, isActive: true };
 
   const [tasks, activeStaff, performanceUsers] = await Promise.all([
     db.dailyTask.findMany({
@@ -583,36 +567,7 @@ export async function getDashboardData(userId: string, role: UserRole, departmen
     db.user.count({
       where: activeStaffWhere,
     }),
-    role === UserRole.employee
-      ? Promise.resolve([])
-      : db.user.findMany({
-          where:
-            role === UserRole.admin
-              ? {
-                  isActive: true,
-                  role: {
-                    in: [UserRole.employee, UserRole.hr, UserRole.manager],
-                  },
-                }
-              : departmentId
-                ? {
-                    isActive: true,
-                    departmentId,
-                    role: {
-                      in: [UserRole.employee, UserRole.hr, UserRole.manager],
-                    },
-                  }
-                : {
-                    isActive: true,
-                    role: {
-                      in: [UserRole.employee, UserRole.hr, UserRole.manager],
-                    },
-                  },
-          include: {
-            department: true,
-          },
-          orderBy: [{ name: "asc" }],
-        }),
+    db.user.findMany({where: {id:userId,isActive:true},include:{department:true}}),
   ]);
 
   const reportsSubmitted = tasks.filter((task) => task.updates.some((item) => toDateOnly(item.reportDate) === toDateOnly(today))).length;
@@ -714,14 +669,14 @@ export async function getDashboardData(userId: string, role: UserRole, departmen
 export async function getPlanWithReports(
   userId: string,
   date = new Date(),
-  options?: { includeAssigned?: boolean },
+  options?: { includeAssigned?: boolean; includeCarryOver?: boolean },
 ) {
   const day = toDateOnly(date);
   const tasks = await db.dailyTask.findMany({
     where: {
       userId,
       ...(options?.includeAssigned ? {} : { assignedBy: null }),
-      planDate: new Date(day),
+      planDate: options?.includeCarryOver ? { lte: new Date(day) } : new Date(day),
     },
     include: {
       updates: {
@@ -766,7 +721,7 @@ export async function canUserEditReportDate(
 ) {
   return {
     allowed: true,
-    mode: user.role === UserRole.manager || user.role === UserRole.admin ? ("direct" as const) : ("today" as const),
+    mode: user.role === UserRole.team_head || user.role === UserRole.super_admin ? ("direct" as const) : ("today" as const),
   };
 }
 
@@ -920,7 +875,6 @@ export async function getHistoryData(userId: string, from?: string, to?: string)
       const archivedToHistory = isMovedToHistory(task.taskDescription);
       const isCompleted =
         latestUpdate?.status === TaskStatus.done ||
-        latestUpdate?.completionPercent === 100 ||
         Boolean(latestUpdate?.actualEnd);
       const hasWorkEvidence = Boolean(
         latestUpdate?.actualStart ||
@@ -986,11 +940,11 @@ export async function getPendingReportEditRequests(reviewer: {
 
 export async function getTeamData(role: UserRole, departmentId?: string | null, scopeToDepartment = false) {
   const today = toDateOnly();
-  const sharedWhere = (role === UserRole.manager || scopeToDepartment) && departmentId ? { departmentId } : {};
+  const sharedWhere = (role === UserRole.team_head || scopeToDepartment) && departmentId ? { departmentId } : {};
   const visibleRoles =
-    role === UserRole.admin
-      ? [UserRole.employee, UserRole.hr, UserRole.manager, UserRole.admin]
-      : [UserRole.employee, UserRole.hr, UserRole.manager];
+    role === UserRole.super_admin
+      ? [UserRole.employee, UserRole.admin, UserRole.team_head, UserRole.super_admin]
+      : [UserRole.employee, UserRole.admin, UserRole.team_head];
 
   const [users, tasks] = await Promise.all([
     db.user.findMany({
@@ -1070,10 +1024,10 @@ export async function getAdminOverview(viewer?: {
   role: UserRole;
   departmentId?: string | null;
 }) {
-  const scopeToDepartment = viewer?.role === UserRole.manager && viewer.departmentId;
+  const scopeToDepartment = viewer?.role === UserRole.team_head && viewer.departmentId;
   const visibleRoles =
-    viewer?.role === UserRole.manager
-      ? [UserRole.employee, UserRole.hr, UserRole.manager]
+    viewer?.role === UserRole.team_head
+      ? [UserRole.employee, UserRole.admin, UserRole.team_head]
       : undefined;
   const userWhere = {
     ...(scopeToDepartment ? { departmentId: viewer?.departmentId } : {}),
@@ -1275,7 +1229,7 @@ export async function getApprovalNotificationCount(user: {
   role: UserRole;
   departmentId?: string | null;
 }) {
-  if (user.role !== UserRole.manager) {
+  if (user.role !== UserRole.team_head) {
     return 0;
   }
 
@@ -1488,12 +1442,7 @@ export async function getAttendanceData(user: {
   departmentId?: string | null;
 }) {
   const today = toDateOnly();
-  const attendanceWhere =
-    user.role === UserRole.manager && user.departmentId
-      ? { departmentId: user.departmentId }
-      : user.role === UserRole.employee
-        ? { id: user.id }
-        : undefined;
+  const attendanceWhere = { id: user.id };
 
   const [users, records] = await Promise.all([
     db.user.findMany({
@@ -1569,6 +1518,20 @@ export async function getAttendanceData(user: {
 
 export async function getCurrentUserAttendanceSnapshot(userId: string) {
   const today = toDateOnly();
+  const openRecord = await db.attendanceRecord.findFirst({
+    where: {
+      userId,
+      workSessions: { some: { endedAt: null } },
+    },
+    include: {
+      workSessions: { orderBy: { startedAt: "asc" } },
+      breakSessions: { orderBy: { startedAt: "asc" } },
+    },
+    orderBy: { attendanceDate: "desc" },
+  });
+
+  if (openRecord) return openRecord;
+
   return db.attendanceRecord.findUnique({
     where: {
       userId_attendanceDate: {
@@ -1588,7 +1551,7 @@ export async function getReminderCandidates(reminderDate = new Date()) {
     where: {
       isActive: true,
       role: {
-        in: [UserRole.employee, UserRole.hr, UserRole.manager],
+        in: [UserRole.employee, UserRole.admin, UserRole.team_head],
       },
     },
     include: {

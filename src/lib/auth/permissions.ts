@@ -1,67 +1,20 @@
-import { UserRole } from "@prisma/client";
-
+import { can, canOpenManagement, isSuperAdmin, type AccessActor } from "@/lib/auth/policy";
 export const EXTRA_ACCESS_OPTIONS = [
-  { key: "team_dashboard", label: "Team Dashboard" },
-  { key: "work_monitor", label: "Work Monitor" },
-  { key: "publish_notices", label: "Publish Notices" },
-  { key: "manage_departments", label: "Manage Departments" },
+ { key: "team_dashboard", label: "Team Dashboard" }, { key: "work_monitor", label: "Work Monitor" },
+ { key: "publish_notices", label: "Publish Notices" }, { key: "manage_departments", label: "Manage Departments" },
 ] as const;
-
-export const MANAGER_GRANTABLE_EXTRA_ACCESS: ExtraAccessKey[] = [
-  "team_dashboard",
-  "work_monitor",
-  "publish_notices",
-];
-
-export type ExtraAccessKey = (typeof EXTRA_ACCESS_OPTIONS)[number]["key"];
-
-type UserWithAccess = {
-  role: UserRole;
-  departmentId?: string | null;
-  extraAccess?: string[] | null;
-};
-
-const EXTRA_ACCESS_SET = new Set<string>(EXTRA_ACCESS_OPTIONS.map((item) => item.key));
-
+export type ExtraAccessKey = typeof EXTRA_ACCESS_OPTIONS[number]["key"];
+export const MANAGER_GRANTABLE_EXTRA_ACCESS: ExtraAccessKey[] = [];
+type UserWithAccess = Partial<AccessActor> & { role: string; extraAccess?: string[] | null };
+const actor=(u:UserWithAccess):AccessActor=>({...u,id:u.id??""});
 export function normalizeExtraAccess(values: unknown): ExtraAccessKey[] {
-  if (!Array.isArray(values)) {
-    return [];
-  }
-
-  return Array.from(
-    new Set(
-      values
-        .filter((value): value is string => typeof value === "string" && EXTRA_ACCESS_SET.has(value))
-        .map((value) => value as ExtraAccessKey),
-    ),
-  );
+ return Array.isArray(values)?values.filter((v):v is ExtraAccessKey=>EXTRA_ACCESS_OPTIONS.some(o=>o.key===v)):[];
 }
-
-export function hasExtraAccess(user: UserWithAccess, key: ExtraAccessKey) {
-  return normalizeExtraAccess(user.extraAccess).includes(key);
-}
-
-export function canAccessTeamDashboard(user: UserWithAccess) {
-  return user.role === UserRole.hr || user.role === UserRole.manager || user.role === UserRole.admin || hasExtraAccess(user, "team_dashboard");
-}
-
-export function canAccessWorkMonitor(user: UserWithAccess) {
-  return user.role === UserRole.manager || user.role === UserRole.admin || hasExtraAccess(user, "work_monitor");
-}
-
-/** Screenshot monitoring evidence: Team Head (own department) and CEO/Admin (organisation) only. */
-export function canAccessScreenshotGallery(user: UserWithAccess) {
-  return user.role === UserRole.manager || user.role === UserRole.admin;
-}
-
-export function canPublishNotices(user: UserWithAccess) {
-  return user.role === UserRole.admin || user.role === UserRole.manager || user.role === UserRole.hr || hasExtraAccess(user, "publish_notices");
-}
-
-export function canManageDepartments(user: UserWithAccess) {
-  return user.role === UserRole.admin || user.role === UserRole.manager || hasExtraAccess(user, "manage_departments");
-}
-
-export function shouldScopePrivilegedViewsToDepartment(user: UserWithAccess) {
-  return user.role === UserRole.manager || user.role === UserRole.employee;
-}
+// Retained for old components only. Legacy extraAccess cannot authorize requests.
+export function hasExtraAccess(_user: UserWithAccess, _key: ExtraAccessKey) { return false; }
+export function canAccessTeamDashboard(user:UserWithAccess){return user.role==="team_head"||isSuperAdmin(actor(user));}
+export function canAccessWorkMonitor(user:UserWithAccess){return canOpenManagement(actor(user))&&can(actor(user),"employees.view");}
+export function canAccessScreenshotGallery(user:UserWithAccess){return false;}
+export function canPublishNotices(user:UserWithAccess){return can(actor(user),"notices.publish");}
+export function canManageDepartments(user:UserWithAccess){return can(actor(user),"departments.manage");}
+export function shouldScopePrivilegedViewsToDepartment(user:UserWithAccess){return !isSuperAdmin(actor(user));}
