@@ -19,7 +19,7 @@ export async function taskLifecycle(request:Request,id:string,management=false){
  const reason=String(management?body.reason??'':body.reopenReason??'').trim();
  if(action==='reopen_task'&&(reason.length<10||reason.length>500))throw new AccessError('Provide a reopen reason of 10–500 characters.',400);
  const note=String(body.completionNote??'').trim();if(note.length>10000)throw new AccessError('Completion note is too long.',400);
- await db.$transaction(async tx=>{
+ const saved=await db.$transaction(async tx=>{
   const actor=await freshActor(tx,user.id);await tx.$queryRaw`SELECT id FROM daily_tasks WHERE id=${id}::uuid FOR UPDATE`;
   const task=await tx.dailyTask.findFirst({where:{id,...(management?{user:employeeScope(actor,'tasks.reopen')}:{userId:actor.id})},include:{updates:{orderBy:[{reportDate:'desc'},{updatedAt:'desc'}],take:1}}});
   if(!task)throw new AccessError('Task not found in your scope.',404);
@@ -28,7 +28,7 @@ export async function taskLifecycle(request:Request,id:string,management=false){
   if(task.planDate>date)throw new AccessError('This task is planned for a future workday.',409);
   const previousCycle=(await tx.taskActivityEvent.aggregate({where:{dailyTaskId:id,eventType:'completed'},_max:{cycle:true}}))._max.cycle??0;
   if(action==='complete_task'){
-   if(last?.status==='done')return; // Retry-safe: a second click cannot create another completion cycle.
+   if(last?.status==='done')return last; // Retry-safe: a second click cannot create another completion cycle.
    if(readChecklist(task.checklist).some(i=>!i.done))throw new AccessError('Complete every checklist item before marking this task Done.',409);
    const supplied=body.trackedMinutes===undefined?0:Number(body.trackedMinutes);
    if(!Number.isFinite(supplied)||supplied<0||supplied>1440)throw new AccessError('Invalid tracked time.',400);
@@ -47,6 +47,7 @@ export async function taskLifecycle(request:Request,id:string,management=false){
     else await tx.reportEditRequest.create({data:{dailyTaskId:id,requestedById:actor.id,reason:reviewReason}});
    }
    await tx.taskTimelineEntry.create({data:{taskId:id,actorId:actor.id,eventType:'completed',note:note||null,snapshot:{title:task.taskTitle,description:task.taskDescription,checklist:task.checklist,completionPercent:100}}});
+   return {reportDate:date,...data};
   }else{
    if(last?.status!=='done')throw new AccessError('Only a completed task can be reopened.',409);
    let cycle=previousCycle;
@@ -58,7 +59,8 @@ export async function taskLifecycle(request:Request,id:string,management=false){
    await tx.taskActivityEvent.create({data:{dailyTaskId:id,actorId:actor.id,eventType:'reopened',cycle,reason,reportDate:date,trackedMinutes:last.trackedMinutes,actualStart:last.actualStart,actualEnd:last.actualEnd}});
    await tx.taskTimelineEntry.create({data:{taskId:id,actorId:actor.id,eventType:'reopened',note:reason,snapshot:{previousStatus:'done',previousNote:last.note,previousCompletedAt:last.actualEnd?.toISOString()??null}}});
    if(management)await audit(tx,actor.id,task.userId,'task.reopened',last,{taskId:id,status:'in_progress'},reason);
+   return {reportDate:date,...data};
   }
  },{isolationLevel:'Serializable'});
- return NextResponse.json({message:action==='complete_task'?'Task completed. History and reports are updated.':'Task reopened. Previous completion remains in History.'});
+ return NextResponse.json({taskUpdate:{reportDate:saved.reportDate.toISOString().slice(0,10),status:saved.status,trackedMinutes:saved.trackedMinutes,actualStart:saved.actualStart?.toISOString()??null,actualEnd:saved.actualEnd?.toISOString()??null,note:saved.note??null},message:action==='complete_task'?'Task completed. History and reports are updated.':'Task reopened. Previous completion remains in History.'});
 }catch(e){return fail(e);}}

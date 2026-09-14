@@ -29,12 +29,12 @@ export function readTaskTimerSnapshot(reportDate: string, taskId: string) {
     return null;
   }
 
-  const raw = window.localStorage.getItem(getTaskTimerStorageKey(reportDate, taskId));
-  if (!raw) {
-    return null;
-  }
-
   try {
+    const raw = window.localStorage.getItem(getTaskTimerStorageKey(reportDate, taskId));
+    if (!raw) {
+      return null;
+    }
+
     const parsed = JSON.parse(raw) as Partial<SharedTaskTimerSnapshot>;
     const status =
       parsed.status === "done" || parsed.status === "in_progress" || parsed.status === "pending"
@@ -72,7 +72,7 @@ export function readTaskTimerSnapshot(reportDate: string, taskId: string) {
       runningStartedAt,
     } satisfies SharedTaskTimerSnapshot;
   } catch {
-    window.localStorage.removeItem(getTaskTimerStorageKey(reportDate, taskId));
+    try { window.localStorage.removeItem(getTaskTimerStorageKey(reportDate, taskId)); } catch { /* Storage may be disabled. */ }
     return null;
   }
 }
@@ -82,5 +82,9 @@ export function writeTaskTimerSnapshot(reportDate: string, taskId: string, snaps
     return;
   }
 
-  window.localStorage.setItem(getTaskTimerStorageKey(reportDate, taskId), JSON.stringify(snapshot));
+  try {
+    window.localStorage.setItem(getTaskTimerStorageKey(reportDate, taskId), JSON.stringify(snapshot));
+  } catch {
+    // Storage is a cache. Its failure must not turn an acknowledged server save into an error.
+  }
 }

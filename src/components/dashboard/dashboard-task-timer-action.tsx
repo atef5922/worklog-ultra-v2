@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { savePersonalTimer } from "@/lib/task-workflow-client";
 import { Pause, Play, Timer } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -38,9 +39,12 @@ type DashboardTaskTimerActionProps = {
   onDoneClick?: () => void;
   onSnapshotChange?: (snapshot: TaskTimerSnapshot) => void;
   afterDoneSlot?: ReactNode;
+  workflowBusy?: boolean;
+  onSavingChange?: (saving: boolean) => void;
 };
 
 export type TaskTimerSnapshot = {
+  sampledAt?: number;
   status: "done" | "in_progress" | "pending";
   trackedMinutes: string;
   trackedSeconds: string;
@@ -69,18 +73,6 @@ function toInputDateTime(value?: Date | string | null) {
   return toDateTimeInputValue(value);
 }
 
-function parseResponsePayload(raw: string) {
-  if (!raw) {
-    return { message: "Task timer update failed." };
-  }
-
-  try {
-    return JSON.parse(raw) as { message?: string };
-  } catch {
-    return { message: "The server returned an unexpected page instead of JSON." };
-  }
-}
-
 function formatDuration(totalSeconds: number) {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -95,19 +87,6 @@ function formatCompactDuration(totalSeconds: number) {
   return hours > 0
     ? `${hours}h ${String(minutes).padStart(2, "0")}m`
     : `${minutes}m ${String(seconds).padStart(2, "0")}s`;
-}
-
-function calculateElapsedSecondsSince(value: string, fallback: Date) {
-  if (!value) {
-    return null;
-  }
-
-  const parsedStart = parseDhakaDateTime(value);
-  if (!parsedStart || parsedStart > fallback) {
-    return null;
-  }
-
-  return Math.floor((fallback.getTime() - parsedStart.getTime()) / 1000);
 }
 
 function toClockValue(value: string) {
@@ -133,6 +112,8 @@ export function DashboardTaskTimerAction({
   onDoneClick,
   onSnapshotChange,
   afterDoneSlot,
+  workflowBusy = false,
+  onSavingChange,
 }: DashboardTaskTimerActionProps) {
   const router = useRouter();
   const storageKey = useMemo(() => `dashboard-task-timer:${reportDate}:${taskId}`, [reportDate, taskId]);
@@ -145,6 +126,8 @@ export function DashboardTaskTimerAction({
   );
   const [now, setNow] = useState(() => Date.now());
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  useEffect(() => { onSavingChange?.(saving); }, [saving, onSavingChange]);
   const [status, setStatus] = useState<"done" | "in_progress" | "pending">(initialStatus);
   const [trackedMinutes, setTrackedMinutes] = useState(String(initialTrackedMinutes));
   const [trackedSeconds, setTrackedSeconds] = useState(initialTrackedMinutes * 60);
@@ -168,13 +151,14 @@ export function DashboardTaskTimerAction({
   const canStart =
     canEdit &&
     !saving &&
+    !workflowBusy &&
     !isCompleted &&
     !runningStartedAt &&
     !attendanceBlocksStart;
   // Deliberately not gated on attendance: stopping the clock must always be
   // possible, even once the workday is closed.
-  const canPause = canEdit && !saving && Boolean(runningStartedAt);
-  const canDone = canEdit && !saving && !isCompleted && Boolean(onDoneClick);
+  const canPause = canEdit && !saving && !workflowBusy && Boolean(runningStartedAt);
+  const canDone = canEdit && !saving && !workflowBusy && !isCompleted && Boolean(onDoneClick);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000);
@@ -187,14 +171,9 @@ export function DashboardTaskTimerAction({
     }
 
     const parsed = readTaskTimerSnapshot(reportDate, taskId);
-    if (!parsed) {
-      storageLoadedRef.current = true;
-      return;
-    }
-
-    if (initialStatus === "done" && parsed.status !== "done") {
+    if (initialStatus === "done" || parsed?.status === "done") {
       const completedSnapshot: SharedTaskTimerSnapshot = {
-        status: "done",
+        status: initialStatus,
         trackedMinutes: String(initialTrackedMinutes),
         trackedSeconds: String(initialTrackedMinutes * 60),
         actualStart: toInputDateTime(initialActualStart),
@@ -204,7 +183,7 @@ export function DashboardTaskTimerAction({
 
       writeTaskTimerSnapshot(reportDate, taskId, completedSnapshot);
       queueMicrotask(() => {
-        setStatus("done");
+        setStatus(initialStatus);
         setTrackedMinutes(String(initialTrackedMinutes));
         setTrackedSeconds(initialTrackedMinutes * 60);
         setActualStart(toInputDateTime(initialActualStart));
@@ -215,6 +194,7 @@ export function DashboardTaskTimerAction({
       return;
     }
 
+    if (!parsed) { storageLoadedRef.current = true; return; }
     queueMicrotask(() => {
       setStatus(parsed.status);
       setTrackedMinutes(parsed.trackedMinutes);
@@ -345,6 +325,7 @@ export function DashboardTaskTimerAction({
     lastSentSignatureRef.current = snapshotSignature;
 
     onSnapshotChange({
+      sampledAt: now,
       status,
       trackedMinutes: liveMinutes,
       trackedSeconds: String(liveTrackedSeconds),
@@ -352,73 +333,33 @@ export function DashboardTaskTimerAction({
       actualEnd,
       runningStartedAt,
     });
-  }, [actualEnd, actualStart, liveMinutes, liveTrackedSeconds, onSnapshotChange, runningStartedAt, snapshotSignature, status]);
+  }, [actualEnd, actualStart, liveMinutes, liveTrackedSeconds, now, onSnapshotChange, runningStartedAt, snapshotSignature, status]);
   const shouldShowResumeLabel =
     !runningStartedAt && (status === "in_progress" || trackedSecondsBase > 0);
   const startClockValue = toClockValue(actualStart);
   const endClockValue = toClockValue(actualEnd);
 
-  function patchClockTime(key: "actualStart" | "actualEnd", value: string) {
-    const resolvedValue = value ? `${reportDate}T${value}` : "";
-
-    if (key === "actualStart") {
-      setActualStart(resolvedValue);
-      if (!resolvedValue) {
-        setActualEnd("");
-      }
-      return;
-    }
-
-    setActualEnd(resolvedValue);
-  }
-
   async function persistUpdate(next: SharedTaskTimerSnapshot, options?: { refresh?: boolean; successMessage?: string }) {
+    if (savingRef.current) return false;
+    savingRef.current = true;
     setSaving(true);
     try {
-      const response = await fetch("/api/dashboard/report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reportDate,
-          updates: [
-            {
-              dailyTaskId: taskId,
-              status: next.status,
-              completionPercent: next.status === "done" ? 100 : 0,
-              trackedMinutes: Number(next.trackedMinutes || 0),
-              actualStart: next.actualStart,
-              actualEnd: next.actualEnd,
-              // note and difficultyLevel are deliberately omitted: the timer does
-              // not own them, and sending "" would wipe what the user wrote.
-            },
-          ],
-        }),
-      });
-
-      const result = parseResponsePayload(await response.text());
-      if (!response.ok) {
-        toast.error(result.message ?? "Task timer update failed.");
-        return false;
-      }
-
+      await savePersonalTimer(taskId, reportDate, next);
       if (options?.successMessage) toast.success(options.successMessage);
-      if (options?.refresh) router.refresh();
       return true;
-    } catch {
-      toast.error("Task timer update failed. Check your connection and try again.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Task timer update failed. Check your connection and try again.");
       return false;
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
-
 
   async function startTimer() {
     if (!canStart) {
       return;
     }
-
-    window.dispatchEvent(new CustomEvent("worklog:task-monitor-start", { detail: { source: `task:${taskId}`, label: taskTitle || `Task ${taskId.slice(0, 8)}` } }));
 
     const savedSnapshot = readTaskTimerSnapshot(reportDate, taskId);
     const resumedTrackedSeconds = Math.max(
@@ -428,19 +369,7 @@ export function DashboardTaskTimerAction({
     const timestamp = new Date();
     const timestampInput = toDateTimeInputValue(timestamp);
     const nextActualStart = actualStart || savedSnapshot?.actualStart || timestampInput;
-    const hasManualStart = Boolean(actualStart || savedSnapshot?.actualStart);
-    const isFreshTimer = status === "pending" && resumedTrackedSeconds === 0;
-    const manualElapsedSeconds = hasManualStart ? calculateElapsedSecondsSince(nextActualStart, timestamp) : null;
-
-    if (isFreshTimer && hasManualStart && manualElapsedSeconds === null) {
-      toast.error("Start time cannot be in the future.");
-      return;
-    }
-
-    const nextTrackedSeconds = Math.max(
-      resumedTrackedSeconds,
-      isFreshTimer ? manualElapsedSeconds ?? 0 : 0,
-    );
+    const nextTrackedSeconds = resumedTrackedSeconds;
     const timestampIso = timestamp.toISOString();
     const nextSnapshot: SharedTaskTimerSnapshot = {
       status: "in_progress",
@@ -451,7 +380,8 @@ export function DashboardTaskTimerAction({
       runningStartedAt: timestampIso,
     };
 
-    if (!await persistUpdate(nextSnapshot, {refresh:true,successMessage:'Task timer started.'})) return;
+    if (!await persistUpdate(nextSnapshot, {successMessage:'Task timer started.'})) return;
+    window.dispatchEvent(new CustomEvent("worklog:task-monitor-start", { detail: { source: `task:${taskId}`, label: taskTitle || `Task ${taskId.slice(0, 8)}` } }));
     setStatus(nextSnapshot.status);
     setTrackedMinutes(nextSnapshot.trackedMinutes);
     setTrackedSeconds(nextTrackedSeconds);
@@ -460,12 +390,10 @@ export function DashboardTaskTimerAction({
     setRunningStartedAt(timestampIso);
 
     writeTaskTimerSnapshot(reportDate, taskId, nextSnapshot);
-    // Refresh like stop does: the task just moved to "in progress", and the
-    // dashboard counters that show it are rendered on the server.
+    router.refresh();
   }
 
   async function stopTimerAt(timestampIso: string, successMessage: string) {
-    window.dispatchEvent(new CustomEvent("worklog:task-monitor-stop", { detail: { source: `task:${taskId}` } }));
     const timestamp = parseDhakaDateTime(timestampIso);
     const timestampInput = toDateTimeInputValue(timestampIso);
     const runningStart = runningStartedAt ? new Date(runningStartedAt).getTime() : Number.NaN;
@@ -484,7 +412,8 @@ export function DashboardTaskTimerAction({
       runningStartedAt: "",
     };
 
-    if (!await persistUpdate(nextSnapshot, {refresh:true,successMessage})) return;
+    if (!await persistUpdate(nextSnapshot, {successMessage})) return false;
+    window.dispatchEvent(new CustomEvent("worklog:task-monitor-stop", { detail: { source: `task:${taskId}` } }));
     setStatus("in_progress");
     setTrackedMinutes(nextTrackedMinutes);
     setTrackedSeconds(liveSecondsAtCutoff);
@@ -493,6 +422,8 @@ export function DashboardTaskTimerAction({
     setRunningStartedAt("");
 
     writeTaskTimerSnapshot(reportDate, taskId, nextSnapshot);
+    router.refresh();
+    return true;
   }
 
   async function pauseTimer() {
@@ -506,32 +437,10 @@ export function DashboardTaskTimerAction({
     await stopTimerAt(nowIsoWithSeconds(), "Task timer paused.");
   }
 
-  async function handleDoneClick() {
-    if (!canDone || !onDoneClick) {
-      return;
-    }
-
-    if (runningStartedAt) {
-      const nextTrackedMinutes = String(Math.floor(liveTrackedSeconds / 60));
-      const timestampInput = toDateTimeInputValue(new Date());
-      const nextSnapshot: SharedTaskTimerSnapshot = {
-        status: "in_progress",
-        trackedMinutes: nextTrackedMinutes,
-        trackedSeconds: String(liveTrackedSeconds),
-        actualStart,
-        actualEnd: timestampInput,
-        runningStartedAt: "",
-      };
-
-      setTrackedMinutes(nextTrackedMinutes);
-      setTrackedSeconds(liveTrackedSeconds);
-      setActualEnd(timestampInput);
-      setRunningStartedAt("");
-      writeTaskTimerSnapshot(reportDate, taskId, nextSnapshot);
-      await persistUpdate(nextSnapshot, { refresh: false });
-    }
-
-    onDoneClick();
+  function handleDoneClick() {
+    // Opening or cancelling the dialog is not a timer transition. Only a
+    // successful Done save may mark completed work and stop its local clock.
+    if (canDone && !savingRef.current) onDoneClick?.();
   }
 
   // This component owns manual pause/done and attendance stop. The shared
@@ -646,6 +555,13 @@ export function DashboardTaskTimerAction({
     );
   }
 
+  if (isCompleted) return <div className="flex flex-wrap items-center gap-3 text-sm">
+    <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-3 py-2 text-emerald-700">
+      <Timer className="h-4 w-4" /> {formatDuration(trackedSecondsBase)}
+    </span>
+    {afterDoneSlot}
+  </div>;
+
   return (
     <div className={compact ? "flex w-full min-w-0 max-w-full flex-col gap-1" : "flex min-w-[10.625rem] flex-col gap-2"}>
       <div className={compact ? "flex min-w-0 flex-wrap items-center gap-1" : "flex flex-wrap items-center gap-1.5"}>
@@ -702,14 +618,16 @@ export function DashboardTaskTimerAction({
           <Input
             className="h-6 min-w-0 border rounded-md border-slate-200 px-2 text-[0.5625rem] bg-white text-slate-600"
             disabled={!canEdit || saving || Boolean(runningStartedAt)}
-            onChange={(event) => patchClockTime("actualStart", event.target.value)}
+            readOnly
+            aria-label="Task start time"
             type="time"
             value={startClockValue}
           />
           <Input
             className="h-6 min-w-0 border rounded-md border-slate-200 px-2 text-[0.5625rem] bg-white text-slate-600"
             disabled={!canEdit || saving || Boolean(runningStartedAt) || !actualStart}
-            onChange={(event) => patchClockTime("actualEnd", event.target.value)}
+            readOnly
+            aria-label="Task end time"
             type="time"
             value={endClockValue}
           />
@@ -723,14 +641,16 @@ export function DashboardTaskTimerAction({
           <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
             <Input
               disabled={!canEdit || saving || Boolean(runningStartedAt)}
-              onChange={(event) => patchClockTime("actualStart", event.target.value)}
+              readOnly
+            aria-label="Task start time"
               type="time"
               value={startClockValue}
             />
             <span className="hidden sm:inline" />
             <Input
               disabled={!canEdit || saving || Boolean(runningStartedAt) || !actualStart}
-              onChange={(event) => patchClockTime("actualEnd", event.target.value)}
+              readOnly
+            aria-label="Task end time"
               type="time"
               value={endClockValue}
             />

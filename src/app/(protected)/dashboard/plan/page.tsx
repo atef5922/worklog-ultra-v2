@@ -80,14 +80,10 @@ export default async function PlanPage() {
         action={
           <DashboardWorkspaceModal
             assignableUsers={assignableUsers}
-            canEditReport={editAccess.allowed}
             currentUserId={user.id}
             departments={departments}
             initialTasks={[]}
             isTenderDepartment={isTenderDepartment}
-            planOnly
-            reportDate={toDateOnly(today)}
-            reportTasks={[]}
             role={user.role}
             suggestions={suggestions}
             userDepartmentId={user.departmentId}

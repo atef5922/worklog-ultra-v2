@@ -1,10 +1,9 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { ClipboardList, Clock3, Plus, X } from "lucide-react";
+import { ClipboardList, Plus, X } from "lucide-react";
 import { useState } from "react";
 import { PlanForm } from "@/components/dashboard/plan-form";
-import { ReportForm } from "@/components/dashboard/report-form";
 import { Button } from "@/components/ui/button";
 
 type Department = { id: string; name: string };
@@ -29,20 +28,6 @@ type InitialTask = {
   departmentId: string;
   assigneeId: string;
 };
-type ReportTask = {
-  id: string;
-  taskTitle: string;
-  updates: Array<{
-    status: "done" | "in_progress" | "pending";
-    note: string | null;
-    completionPercent: number;
-    trackedMinutes: number;
-    actualStart: Date | null;
-    actualEnd: Date | null;
-    difficultyLevel: string | null;
-  }>;
-};
-
 export function DashboardWorkspaceModal({
   departments,
   initialTasks,
@@ -50,12 +35,8 @@ export function DashboardWorkspaceModal({
   userDepartmentId,
   isTenderDepartment = false,
   role,
-  reportTasks,
-  reportDate,
-  canEditReport,
   assignableUsers,
   currentUserId,
-  planOnly = false,
 }: {
   departments: Department[];
   initialTasks: InitialTask[];
@@ -63,15 +44,10 @@ export function DashboardWorkspaceModal({
   userDepartmentId?: string | null;
   isTenderDepartment?: boolean;
   role: "employee" | "admin" | "team_head" | "moderator" | "super_admin";
-  reportTasks: ReportTask[];
-  reportDate: string;
-  canEditReport: boolean;
   assignableUsers: AssignableUser[];
   currentUserId: string;
-  planOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<"plan" | "tracker">("plan");
   const [planResetToken, setPlanResetToken] = useState(0);
 
   return (
@@ -79,7 +55,6 @@ export function DashboardWorkspaceModal({
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
         if (nextOpen) {
-          setActiveTab("plan");
           setPlanResetToken((current) => current + 1);
         }
       }}
@@ -104,12 +79,10 @@ export function DashboardWorkspaceModal({
               </span>
               <div className="min-w-0">
                 <Dialog.Title className="text-base font-bold text-[var(--foreground)]">
-                  {planOnly ? "Add Today's Task" : "Today's Workspace"}
+                  Add Today&apos;s Task
                 </Dialog.Title>
                 <p className="truncate text-xs text-[var(--muted-foreground)]">
-                  {planOnly
-                    ? "Create a task for yourself or assign one to a teammate."
-                    : "Plan tasks or update today's tracked work from one place."}
+                  Create a task for yourself or assign one to a teammate.
                 </p>
               </div>
             </div>
@@ -124,35 +97,7 @@ export function DashboardWorkspaceModal({
             </Dialog.Close>
           </div>
 
-          {!planOnly ? <div className="flex items-center gap-2 border-b border-[var(--panel-border)] px-4 py-2">
-            <button
-              className={`inline-flex h-8 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition ${
-                activeTab === "plan"
-                  ? "bg-[#4f5ef7] text-white shadow-[0_8px_18px_rgba(79,94,247,0.22)]"
-                  : "bg-[var(--panel-alt)] text-[var(--muted-foreground)] hover:bg-[var(--panel-muted)]"
-              }`}
-              onClick={() => setActiveTab("plan")}
-              type="button"
-            >
-              <ClipboardList className="h-3.5 w-3.5" />
-              Work Plan
-            </button>
-            <button
-              className={`inline-flex h-8 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold transition ${
-                activeTab === "tracker"
-                  ? "bg-[#4f5ef7] text-white shadow-[0_8px_18px_rgba(79,94,247,0.22)]"
-                  : "bg-[var(--panel-alt)] text-[var(--muted-foreground)] hover:bg-[var(--panel-muted)]"
-              }`}
-              onClick={() => setActiveTab("tracker")}
-              type="button"
-            >
-              <Clock3 className="h-3.5 w-3.5" />
-              Time Tracker
-            </button>
-          </div> : null}
-
           <div className="px-4 py-3">
-            {planOnly || activeTab === "plan" ? (
               <PlanForm
                 key={planResetToken}
                 assignableUsers={assignableUsers}
@@ -167,20 +112,7 @@ export function DashboardWorkspaceModal({
                 suggestions={suggestions}
                 userDepartmentId={userDepartmentId}
               />
-            ) : (
-              <div className="space-y-2">
-                <div className="rounded-xl border border-[var(--panel-border)] bg-[var(--panel-muted)] px-3 py-2 text-xs text-[var(--muted-foreground)]">
-                  Start, pause, stop, or finish today&apos;s tracked tasks here.
-                </div>
-                <ReportForm
-                  canEdit={canEditReport}
-                  currentUserId={currentUserId}
-                  onSaved={() => setOpen(false)}
-                  reportDate={reportDate}
-                  tasks={reportTasks}
-                />
-              </div>
-            )}
+
           </div>
         </Dialog.Content>
       </Dialog.Portal>

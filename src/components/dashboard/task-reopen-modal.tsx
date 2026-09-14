@@ -44,7 +44,7 @@ export function TaskReopenModal({
   }, [open, taskTitle]);
 
   return (
-    <Dialog.Root onOpenChange={onOpenChange} open={open}>
+    <Dialog.Root onOpenChange={(next) => { if (!saving) onOpenChange(next); }} open={open}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-sm" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(500px,92vw)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.28)] outline-none">
@@ -119,6 +119,7 @@ export function TaskReopenModal({
                 autoFocus
                 id="reopen-reason"
                 maxLength={500}
+                disabled={saving}
                 onChange={(event) => setReason(event.target.value)}
                 placeholder="Describe what is incomplete or what needs correction..."
                 rows={4}

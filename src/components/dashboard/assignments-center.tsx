@@ -3,7 +3,6 @@
 import {
   CheckCircle2,
   CheckSquare2,
-  ClipboardCheck,
   CornerDownLeft,
   Inbox,
   Paperclip,
@@ -28,7 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { extractAssignmentAttachmentMeta } from "@/lib/assignment-attachments";
 import { formatTaskPriority, TASK_PRIORITY_OPTIONS } from "@/lib/task-priority";
-import { readTaskTimerSnapshot, writeTaskTimerSnapshot } from "@/lib/task-timer-storage";
+import { AssignmentWorkPanel } from "./assignment-work-panel";
 import { formatDateTimeInDhaka, toDateOnly } from "@/lib/utils";
 
 type Department = { id: string; name: string };
@@ -58,6 +57,7 @@ type AssignmentTask = {
     actualStart?: Date | null;
     actualEnd?: Date | null;
     updatedAt?: Date;
+    reportDate?: Date;
   }>;
   latestReview: {
     id: string;
@@ -104,47 +104,16 @@ function statusVariant(status: "done" | "in_progress" | "pending") {
   return "warning";
 }
 
-function toInputDateTime(value?: Date | string | null) {
-  if (!value) {
-    return "";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  const dhakaFormatter = new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "Asia/Dhaka",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-
-  const parts = dhakaFormatter.formatToParts(date);
-  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "00";
-  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
-}
-
-function formatLiveDuration(totalSeconds: number) {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return `${hours}h ${String(minutes).padStart(2, "0")}m ${String(seconds).padStart(2, "0")}s`;
-}
-
 export function AssignmentsCenter({
   currentUserId,
+  attendanceRunning,
   departments = [],
   assignableUsers = [],
   assignedByMe = [],
   assignedToMe = [],
 }: {
   currentUserId: string;
+  attendanceRunning: boolean;
   departments: Department[];
   assignableUsers: AssignableUser[];
   assignedByMe: AssignmentTask[];
@@ -163,17 +132,6 @@ export function AssignmentsCenter({
   const [selectedAssignment, setSelectedAssignment] = useState<SelectedAssignment | null>(null);
   const [reviewNote, setReviewNote] = useState("");
   const [reviewSaving, setReviewSaving] = useState(false);
-  const [workStatus, setWorkStatus] = useState<"done" | "in_progress" | "pending">("pending");
-  const [workNote, setWorkNote] = useState("");
-  const [workTrackedMinutes, setWorkTrackedMinutes] = useState("0");
-  const [workActualStart, setWorkActualStart] = useState("");
-  const [workActualEnd, setWorkActualEnd] = useState("");
-  const [workRunningStartedAt, setWorkRunningStartedAt] = useState("");
-  const [workTrackedSeconds, setWorkTrackedSeconds] = useState(0);
-  const [workFiles, setWorkFiles] = useState<File[]>([]);
-  const [workSaving, setWorkSaving] = useState(false);
-  const [submittingWork, setSubmittingWork] = useState(false);
-  const [liveNow, setLiveNow] = useState(() => Date.now());
 
   const filteredUsers = useMemo(
     () => assignableUsers.filter((member) => !departmentId || member.departmentId === departmentId),
@@ -197,10 +155,6 @@ export function AssignmentsCenter({
     router.replace(nextQuery ? `/dashboard/assignments?${nextQuery}` : "/dashboard/assignments", { scroll: false });
   }
 
-  useEffect(() => {
-    const interval = window.setInterval(() => setLiveNow(Date.now()), 1000);
-    return () => window.clearInterval(interval);
-  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -231,28 +185,6 @@ export function AssignmentsCenter({
     }
   }, [assignedByMe, assignedToMe, searchParams]);
 
-  useEffect(() => {
-    if (!selectedAssignment || selectedAssignment.list !== "assignedToMe") {
-      setWorkFiles([]);
-      return;
-    }
-
-    const task = selectedAssignment.task;
-    const reportDate = toDateOnly();
-    const snapshot = readTaskTimerSnapshot(reportDate, task.id);
-    const last = task.updates[0];
-    const latest = last?.actualStart && toDateOnly(last.actualStart) !== reportDate && last.status !== 'done' ? undefined : last;
-    const trackedSecondsFromSnapshot = Number(snapshot?.trackedSeconds ?? String(Number(snapshot?.trackedMinutes ?? latest?.trackedMinutes ?? 0) * 60));
-
-    setWorkStatus(snapshot?.status ?? latest?.status ?? "pending");
-    setWorkNote(task.latestReview?.submitNote || latest?.note || "");
-    setWorkTrackedMinutes(snapshot?.trackedMinutes ?? String(latest?.trackedMinutes ?? 0));
-    setWorkTrackedSeconds(trackedSecondsFromSnapshot);
-    setWorkActualStart(snapshot?.actualStart ?? toInputDateTime(latest?.actualStart));
-    setWorkActualEnd(snapshot?.actualEnd ?? toInputDateTime(latest?.actualEnd));
-    setWorkRunningStartedAt(snapshot?.runningStartedAt ?? "");
-    setWorkFiles([]);
-  }, [selectedAssignment]);
 
   async function assignTask() {
     if (!title.trim()) {
@@ -289,7 +221,9 @@ export function AssignmentsCenter({
     router.refresh();
   }
 
-  const selectedTask = selectedAssignment?.task ?? null;
+  const selectedTask = (selectedAssignment?.list === "assignedToMe"
+    ? assignedToMe.find(task => task.id === selectedAssignment.task.id)
+    : assignedByMe.find(task => task.id === selectedAssignment?.task.id)) ?? selectedAssignment?.task ?? null;
   const latestUpdate = selectedTask?.updates[0] ?? null;
   const selectedReview = selectedTask?.latestReview ?? null;
   const canDirectReview = selectedAssignment?.list === "assignedByMe" && selectedReview?.status === "pending";
@@ -321,154 +255,6 @@ export function AssignmentsCenter({
     router.refresh();
   }
 
-  const liveWorkTrackedSeconds =
-    workRunningStartedAt && !Number.isNaN(new Date(workRunningStartedAt).getTime())
-      ? workTrackedSeconds + Math.max(0, Math.floor((liveNow - new Date(workRunningStartedAt).getTime()) / 1000))
-      : workTrackedSeconds;
-
-  function persistWorkSnapshot(next: {
-    status: "done" | "in_progress" | "pending";
-    trackedMinutes: string;
-    trackedSeconds: number;
-    actualStart: string;
-    actualEnd: string;
-    runningStartedAt: string;
-  }) {
-    if (!selectedTask || selectedAssignment?.list !== "assignedToMe") {
-      return;
-    }
-
-    writeTaskTimerSnapshot(toDateOnly(), selectedTask.id, {
-      status: next.status,
-      trackedMinutes: next.trackedMinutes,
-      trackedSeconds: String(next.trackedSeconds),
-      actualStart: next.actualStart,
-      actualEnd: next.actualEnd,
-      runningStartedAt: next.runningStartedAt,
-    });
-  }
-
-  async function saveAssignmentWork(nextStatus?: "done" | "in_progress" | "pending") {
-    if (!selectedTask || selectedAssignment?.list !== "assignedToMe") {
-      return false;
-    }
-
-    const finalStatus = nextStatus ?? workStatus;
-    const finalTrackedMinutes = String(Math.floor(liveWorkTrackedSeconds / 60));
-    const finalActualEnd =
-      nextStatus === "done" && !workActualEnd
-        ? toInputDateTime(new Date())
-        : workActualEnd;
-
-    setWorkSaving(true);
-    const response = await fetch(finalStatus === "done" ? `/api/dashboard/tasks/${selectedTask.id}` : "/api/dashboard/report", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(finalStatus === 'done' ? {
-        action:'complete_task',completionStatus:'done',completionNote:workNote,trackedMinutes:Number(finalTrackedMinutes),actualStart:workActualStart
-      } : {
-        reportDate: toDateOnly(),
-        updates: [
-          {
-            dailyTaskId: selectedTask.id,
-            status: finalStatus,
-            note: workNote,
-            completionPercent: 0,
-            trackedMinutes: Number(finalTrackedMinutes),
-            actualStart: workActualStart,
-            actualEnd: finalActualEnd,
-            difficultyLevel: "",
-          },
-        ],
-      }),
-    });
-    const raw = await response.text();
-    const result = raw ? JSON.parse(raw) : { message: "Assignment work could not be saved." };
-    setWorkSaving(false);
-
-    if (!response.ok) {
-      toast.error(result.message);
-      return false;
-    }
-
-    setWorkStatus(finalStatus);
-    setWorkTrackedMinutes(finalTrackedMinutes);
-    setWorkTrackedSeconds(liveWorkTrackedSeconds);
-    setWorkActualEnd(finalActualEnd);
-    setWorkRunningStartedAt("");
-    persistWorkSnapshot({
-      status: finalStatus,
-      trackedMinutes: finalTrackedMinutes,
-      trackedSeconds: liveWorkTrackedSeconds,
-      actualStart: workActualStart,
-      actualEnd: finalActualEnd,
-      runningStartedAt: "",
-    });
-    toast.success(nextStatus === "done" ? "Assignment marked complete." : "Assignment work saved.");
-    if (nextStatus === "done") {
-      closeSelectedAssignment();
-    }
-    router.refresh();
-    return true;
-  }
-
-  async function syncAssignmentTimer(start:string,end:string,seconds:number){
-    if(!selectedTask||workSaving)return false;
-    setWorkSaving(true);
-    try{
-      const response=await fetch('/api/dashboard/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({reportDate:toDateOnly(),updates:[{dailyTaskId:selectedTask.id,status:'in_progress',completionPercent:0,trackedMinutes:Math.floor(seconds/60),actualStart:start,actualEnd:end}]})});
-      const result=await response.json();if(!response.ok)throw new Error(result.message);return true;
-    }catch(error){toast.error(error instanceof Error?error.message:'Task timer could not be saved.');return false;}finally{setWorkSaving(false);}
-  }
-  async function startAssignmentTimer() {
-    if (!selectedTask || selectedAssignment?.list !== 'assignedToMe' || workSaving || workStatus==='done') return;
-    const start=workActualStart||toInputDateTime(new Date()),running=new Date().toISOString();
-    if(!await syncAssignmentTimer(start,'',workTrackedSeconds))return;
-    setWorkStatus('in_progress');setWorkActualStart(start);setWorkActualEnd('');setWorkRunningStartedAt(running);
-    persistWorkSnapshot({status:'in_progress',trackedMinutes:String(Math.floor(workTrackedSeconds/60)),trackedSeconds:workTrackedSeconds,actualStart:start,actualEnd:'',runningStartedAt:running});
-  }
-  async function pauseAssignmentTimer() {
-    if (!selectedTask || selectedAssignment?.list !== 'assignedToMe' || !workRunningStartedAt || workSaving) return;
-    const end=toInputDateTime(new Date()),seconds=liveWorkTrackedSeconds;
-    if(!await syncAssignmentTimer(workActualStart,end,seconds))return;
-    setWorkStatus('in_progress');setWorkTrackedMinutes(String(Math.floor(seconds/60)));setWorkTrackedSeconds(seconds);setWorkActualEnd(end);setWorkRunningStartedAt('');
-    persistWorkSnapshot({status:'in_progress',trackedMinutes:String(Math.floor(seconds/60)),trackedSeconds:seconds,actualStart:workActualStart,actualEnd:end,runningStartedAt:''});
-  }
-  async function stopAssignmentTimer(){await pauseAssignmentTimer();}
-
-  async function submitAssignmentWork() {
-    if (!selectedTask || selectedAssignment?.list !== "assignedToMe") {
-      return;
-    }
-
-    const saved = await saveAssignmentWork();
-    if (!saved) {
-      return;
-    }
-
-    setSubmittingWork(true);
-    const payload = new FormData();
-    payload.append("action", "submit");
-    payload.append("note", workNote);
-    workFiles.forEach((file) => payload.append("attachments", file));
-    const response = await fetch(`/api/dashboard/assignments/${selectedTask.id}/review`, {
-      method: "POST",
-      body: payload,
-    });
-    const raw = await response.text();
-    const result = raw ? JSON.parse(raw) : { message: "Assignment submit failed." };
-    setSubmittingWork(false);
-
-    if (!response.ok) {
-      toast.error(result.message);
-      return;
-    }
-
-    toast.success(result.message);
-    setWorkFiles([]);
-    closeSelectedAssignment();
-    router.refresh();
-  }
 
   return (
     /* One screen: the page never scrolls and the title stays fixed; the assign
@@ -863,138 +649,9 @@ export function AssignmentsCenter({
               ) : null}
 
               {selectedAssignment?.list === "assignedToMe" ? (
-                <div className="rounded-2xl border border-[var(--panel-border)] bg-[var(--panel-muted)] p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Work Submission</p>
-                    <span className="rounded-full border border-[var(--panel-border)] bg-[var(--panel)] px-3 py-1 text-sm font-semibold text-[var(--foreground)]">
-                      {formatLiveDuration(liveWorkTrackedSeconds)}
-                    </span>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <Button
-                      className="button-force-white bg-emerald-500 hover:bg-emerald-600"
-                      disabled={Boolean(workRunningStartedAt) || workSaving}
-                      onClick={startAssignmentTimer}
-                      size="sm"
-                      type="button"
-                    >
-                      {workTrackedSeconds > 0 || workActualStart ? "Resume" : "Start"}
-                    </Button>
-                    <Button
-                      disabled={!workRunningStartedAt || workSaving}
-                      onClick={pauseAssignmentTimer}
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                    >
-                      Pause
-                    </Button>
-                    <Button
-                      disabled={(!workRunningStartedAt && !workActualStart) || workSaving}
-                      onClick={stopAssignmentTimer}
-                      size="sm"
-                      type="button"
-                      variant="outline"
-                    >
-                      End
-                    </Button>
-                    <Button
-                      className="button-force-white bg-slate-800 hover:bg-slate-900"
-                      disabled={workSaving}
-                      onClick={() => void saveAssignmentWork("done")}
-                      size="sm"
-                      type="button"
-                    >
-                      Complete
-                    </Button>
-                  </div>
-
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <div>
-                      <Label>Status</Label>
-                      <Select onValueChange={(value) => setWorkStatus(value as "done" | "in_progress" | "pending")} value={workStatus}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pending">Pending</SelectItem>
-                          <SelectItem value="in_progress">In Progress</SelectItem>
-                          <SelectItem value="done">Done</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Tracked Minutes</Label>
-                      <Input
-                        onChange={(event) => {
-                          const value = event.target.value.replace(/[^\d]/g, "");
-                          setWorkTrackedMinutes(value || "0");
-                          setWorkTrackedSeconds(Number(value || "0") * 60);
-                        }}
-                        type="number"
-                        value={String(Math.floor(liveWorkTrackedSeconds / 60))}
-                      />
-                    </div>
-                    <div>
-                      <Label>Actual Start</Label>
-                      <Input onChange={(event) => setWorkActualStart(event.target.value)} type="datetime-local" value={workActualStart} />
-                    </div>
-                    <div>
-                      <Label>Actual End</Label>
-                      <Input onChange={(event) => setWorkActualEnd(event.target.value)} type="datetime-local" value={workActualEnd} />
-                    </div>
-                  </div>
-
-                  <div className="mt-4">
-                    <Label>Submission Note</Label>
-                    <Textarea
-                      onChange={(event) => setWorkNote(event.target.value)}
-                      placeholder="Write what you completed, current progress, blockers, or next step."
-                      rows={5}
-                      value={workNote}
-                    />
-                  </div>
-
-                  <div className="mt-4">
-                    <Label>Attach Files</Label>
-                    <input
-                      className="hidden"
-                      id={`assignment-work-files-${selectedTask.id}`}
-                      multiple
-                      onChange={(event) => setWorkFiles(Array.from(event.target.files ?? []))}
-                      type="file"
-                    />
-                    <label
-                      className="mt-2 flex cursor-pointer items-center justify-between rounded-2xl border border-[var(--panel-border)] bg-[var(--panel)] px-4 py-3 text-sm text-[var(--foreground)]"
-                      htmlFor={`assignment-work-files-${selectedTask.id}`}
-                    >
-                      <span className="inline-flex items-center gap-2 rounded-xl bg-[#4f5ef7] px-3 py-2 text-xs font-semibold text-[var(--foreground)]">
-                        <Paperclip className="h-3.5 w-3.5" />
-                        Choose Files
-                      </span>
-                      <span className="ml-3 truncate text-right text-[var(--muted-foreground)]">
-                        {workFiles.length
-                          ? workFiles.length === 1
-                            ? workFiles[0]?.name
-                            : `${workFiles.length} files selected`
-                          : "Optional supporting files"}
-                      </span>
-                    </label>
-                    {workFiles.length ? (
-                      <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--muted-foreground)]">
-                        {workFiles.map((file) => (
-                          <span
-                            key={`${file.name}-${file.size}`}
-                            className="rounded-full border border-[var(--panel-border)] bg-[var(--panel)] px-2.5 py-1"
-                          >
-                            {file.name}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
+                <AssignmentWorkPanel key={selectedTask.id} task={selectedTask} attendanceRunning={attendanceRunning}
+                  initialNote={selectedTask.latestReview?.submitNote || selectedTask.updates[0]?.note || ""}
+                  onSubmitted={closeSelectedAssignment}/>
               ) : null}
 
               {selectedAssignment?.list === "assignedByMe" ? (
@@ -1022,17 +679,6 @@ export function AssignmentsCenter({
               ) : null}
 
               <div className="flex flex-wrap justify-end gap-3">
-                {selectedAssignment?.list === "assignedToMe" ? (
-                  <Button disabled={workSaving} onClick={() => void saveAssignmentWork()} size="sm" type="button" variant="outline">
-                    {workSaving ? "Saving..." : "Save Work"}
-                  </Button>
-                ) : null}
-                {selectedAssignment?.list === "assignedToMe" ? (
-                  <Button className="button-force-white" disabled={submittingWork || workSaving} onClick={() => void submitAssignmentWork()} size="sm" type="button">
-                    <ClipboardCheck className="h-4 w-4" />
-                    {submittingWork ? "Submitting..." : "Submit"}
-                  </Button>
-                ) : null}
                 {selectedAssignment?.list === "assignedByMe" ? (
                   <Link href={`/dashboard/report?date=${toDateOnly(selectedTask.planDate)}&taskId=${selectedTask.id}`}>
                     <Button size="sm" type="button" variant="secondary">
@@ -1068,7 +714,7 @@ export function AssignmentsCenter({
                 {assignmentStatus(selectedTask) === "done" ? (
                   <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
                     <CheckCircle2 className="h-4 w-4" />
-                    Submission complete
+                    Task completed
                   </div>
                 ) : null}
                 <Button onClick={closeSelectedAssignment} size="sm" type="button" variant="outline">

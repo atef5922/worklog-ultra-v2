@@ -325,26 +325,11 @@ export default async function DashboardPage() {
         </div>
         <div className="flex w-full shrink-0 flex-nowrap items-center gap-2 sm:w-auto sm:justify-end sm:gap-3">
           <DashboardWorkspaceModal
-            canEditReport={editAccess.allowed}
             currentUserId={user.id}
             departments={departments}
             initialTasks={[]}
             isTenderDepartment={isTenderDepartment}
             assignableUsers={assignableUsers}
-            reportDate={reportDate}
-            reportTasks={(reportTasks ?? []).map((task) => ({
-              id: task.id,
-              taskTitle: task.taskTitle,
-              updates: (task.updates ?? []).map((update) => ({
-                status: update.status,
-                note: update.note,
-                completionPercent: update.completionPercent,
-                trackedMinutes: update.trackedMinutes,
-                actualStart: update.actualStart,
-                actualEnd: update.actualEnd,
-                difficultyLevel: update.difficultyLevel,
-              })),
-            }))}
             role={user.role}
             suggestions={suggestions ?? []}
             userDepartmentId={user.departmentId}

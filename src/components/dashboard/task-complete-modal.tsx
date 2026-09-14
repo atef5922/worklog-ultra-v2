@@ -8,12 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 export type TaskCompletionPayload = {
-  completionStatus: "done" | "partial";
+  completionStatus: "done";
   completionNote: string;
-  needFollowUp: boolean;
-  followUpDate: string;
-  followUpTime: string;
-  followUpNote: string;
 };
 
 type TaskCompleteModalProps = {
@@ -45,15 +41,11 @@ export function TaskCompleteModal({
     await onSave({
       completionStatus: "done",
       completionNote: completionNote.trim(),
-      needFollowUp: false,
-      followUpDate: "",
-      followUpTime: "",
-      followUpNote: "",
     });
   }
 
   return (
-    <Dialog.Root onOpenChange={onOpenChange} open={open}>
+    <Dialog.Root onOpenChange={(next) => { if (!saving) onOpenChange(next); }} open={open}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-sm" />
         <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[min(560px,92vw)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[28px] border border-[var(--panel-border)] bg-[var(--panel)] shadow-2xl outline-none">
@@ -84,6 +76,8 @@ export function TaskCompleteModal({
                 onChange={(event) => setCompletionNote(event.target.value)}
                 placeholder="Add any notes about what was completed..."
                 rows={4}
+                maxLength={10000}
+                disabled={saving}
                 value={completionNote}
               />
             </div>

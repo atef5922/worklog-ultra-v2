@@ -41,3 +41,8 @@ describe('Report write guards',()=>{
  it('rejects impossible tracked time',async()=>expect((await savePersonalReport(req({reportDate:day,updates:[{...update,trackedMinutes:600}]}))).status).toBe(400));
  it('locks task IDs in stable order to avoid cross-batch deadlocks',async()=>{const second='22222222-2222-4222-8222-222222222222';await savePersonalReport(req({reportDate:day,updates:[{...update,dailyTaskId:second},update]}));expect(m.tx.$queryRaw.mock.calls.map(c=>c[1])).toEqual([id,second]);});
 });
+
+describe('Lifecycle response contract',()=>{
+ it('returns the saved completion state for every client surface',async()=>{const response=await taskLifecycle(req({action:'complete_task',completionNote:'Checked carefully'}),id);expect(response.status).toBe(200);expect((await response.json()).taskUpdate).toMatchObject({reportDate:day,status:'done',trackedMinutes:0,actualStart:null,actualEnd:'2026-09-13T12:00:00.000Z',note:'Checked carefully'});});
+ it('returns a paused same-day reopen without losing previous time',async()=>{m.tx.dailyTask.findFirst.mockResolvedValue(task({updates:[{status:'done',reportDate:new Date(day),trackedMinutes:15,actualStart:new Date('2026-09-13T05:00:00Z'),actualEnd:new Date('2026-09-13T05:15:00Z'),note:'Completed'}]}));m.tx.taskActivityEvent.aggregate.mockResolvedValue({_max:{cycle:1}});const response=await taskLifecycle(req({action:'reopen_task',reopenReason:'Additional testing required'}),id);expect(response.status).toBe(200);expect((await response.json()).taskUpdate).toMatchObject({reportDate:day,status:'in_progress',trackedMinutes:15,actualStart:'2026-09-13T05:00:00.000Z',actualEnd:'2026-09-13T05:15:00.000Z'});});
+});
