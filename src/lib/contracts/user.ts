@@ -52,6 +52,7 @@ export type SessionUserResponse = {
 };
 
 export type DashboardAttendanceSnapshot = {
+  revision: string;
   status: "present" | "late" | "half_day" | "absent" | "remote";
   attendanceDate: string;
   note: string;

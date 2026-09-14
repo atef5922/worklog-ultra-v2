@@ -1,3 +1,4 @@
+import { serializeAttendanceRecord } from "@/lib/attendance-record";
 import { CalendarCheck2, Check, CheckCircle2, ClipboardList, Clock3, PlayCircle, TimerReset } from "lucide-react";
 import { PanelHeader } from "@/components/dashboard/panel-header";
 import { DashboardKpiCards, type DashboardKpiCard } from "@/components/dashboard/dashboard-kpi-cards";
@@ -337,37 +338,7 @@ export default async function DashboardPage() {
           <div className="shrink-0">
             <DashboardWorkdayTimer
               currentUserId={user.id}
-              initialAttendance={
-                attendance
-                  ? {
-                      status: attendance.status,
-                      attendanceDate: toDateOnly(attendance.attendanceDate),
-                      note: attendance.note ?? "",
-                      breakMinutes: attendance.breakMinutes ?? 0,
-                      checkInAt: attendance.checkInAt?.toISOString() ?? null,
-                      checkOutAt: attendance.checkOutAt?.toISOString() ?? null,
-                      legacyBreakMinutes: attendance.legacyBreakMinutes,
-                      active: attendanceActive,
-                      onBreak: attendanceOnBreak,
-                      currentSessionStartedAt:
-                        attendance.workSessions.find((session) => !session.endedAt)?.startedAt.toISOString() ?? null,
-                      currentBreakStartedAt:
-                        attendance.breakSessions.find((session) => !session.endedAt)?.startedAt.toISOString() ?? null,
-                      workSessions: attendance.workSessions.map((session) => ({
-                        id: session.id,
-                        startedAt: session.startedAt.toISOString(),
-                        endedAt: session.endedAt?.toISOString() ?? null,
-                        endReason: session.endReason,
-                      })),
-                      breakSessions: attendance.breakSessions.map((session) => ({
-                        id: session.id,
-                        startedAt: session.startedAt.toISOString(),
-                        endedAt: session.endedAt?.toISOString() ?? null,
-                        endReason: session.endReason,
-                      })),
-                    }
-                  : null
-              }
+              initialAttendance={attendance ? serializeAttendanceRecord(attendance) : null}
               mode="button"
             />
           </div>
@@ -389,6 +360,7 @@ export default async function DashboardPage() {
             <div
               className="group relative flex min-h-[4rem] min-w-0 items-center gap-2 overflow-hidden rounded-[0.875rem] border border-[#d5f7e9] bg-white p-2 text-left sm:rounded-[1rem]"
               data-dashboard-card
+              key="attendance"
               title="Today's attendance status"
             >
               <div className="absolute inset-x-0 top-0 h-1 bg-[#17b26a]" />
@@ -460,33 +432,7 @@ export default async function DashboardPage() {
                 id: task.id,
                 trackedMinutes: getTaskDaySeed(task, reportDate).trackedMinutes,
               }))}
-              attendance={attendance ? {
-                attendanceDate: toDateOnly(attendance.attendanceDate),
-                status: attendance.status,
-                note: attendance.note ?? "",
-                checkInAt: attendance.checkInAt?.toISOString() ?? null,
-                checkOutAt: attendance.checkOutAt?.toISOString() ?? null,
-                breakMinutes: attendance.breakMinutes ?? 0,
-                legacyBreakMinutes: attendance.legacyBreakMinutes,
-                active: attendanceActive,
-                onBreak: attendanceOnBreak,
-                currentSessionStartedAt:
-                  attendance.workSessions.find((session) => !session.endedAt)?.startedAt.toISOString() ?? null,
-                currentBreakStartedAt:
-                  attendance.breakSessions.find((session) => !session.endedAt)?.startedAt.toISOString() ?? null,
-                workSessions: attendance.workSessions.map((session) => ({
-                  id: session.id,
-                  startedAt: session.startedAt.toISOString(),
-                  endedAt: session.endedAt?.toISOString() ?? null,
-                  endReason: session.endReason,
-                })),
-                breakSessions: attendance.breakSessions.map((session) => ({
-                  id: session.id,
-                  startedAt: session.startedAt.toISOString(),
-                  endedAt: session.endedAt?.toISOString() ?? null,
-                  endReason: session.endReason,
-                })),
-              } : null}
+              attendance={attendance ? serializeAttendanceRecord(attendance) : null}
             />
 
             <div

@@ -25,7 +25,9 @@
     "db:migrate:sql": "prisma migrate diff --from-empty --to-schema prisma/schema.prisma --script",
     "db:seed": "tsx prisma/seed.ts",
     "test:management:browser": "node scripts/check-management.cjs",
-    "test:task-workflow:browser": "node scripts/check-task-workflow.cjs"
+    "test:task-workflow:browser": "node scripts/check-task-workflow.cjs",
+    "test:attendance:browser": "node scripts/check-attendance.cjs",
+    "test:attendance:postgres": "node scripts/check-attendance-postgres.cjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

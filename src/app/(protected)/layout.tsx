@@ -1,3 +1,4 @@
+import { serializeAttendanceRecord } from "@/lib/attendance-record";
 import { AppCloseTimerStop } from "@/components/dashboard/app-close-timer-stop";
 import { AssignmentNotificationLive } from "@/components/dashboard/assignment-notification-live";
 import { DashboardHeader } from "@/components/dashboard/header";
@@ -10,7 +11,6 @@ import { requireUser } from "@/lib/auth/server";
 import { EmployeePresence } from '@/components/management/employee-presence';
 import { AccessRefresh } from "@/components/management/access-refresh";
 import { roleUiTitle } from "@/lib/auth/roles";
-import { toDateOnly } from "@/lib/utils";
 import type { DashboardHeaderUser, DashboardSidebarUser } from "@/lib/contracts/user";
 import {
   getAssignmentNotificationCount,
@@ -58,35 +58,7 @@ export default async function ProtectedLayout({
     requestNotifications,
     assignmentNotifications,
     noticeNotifications,
-    attendanceSnapshot: attendanceSnapshot
-      ? {
-          status: attendanceSnapshot.status,
-          attendanceDate: toDateOnly(attendanceSnapshot.attendanceDate),
-          note: attendanceSnapshot.note ?? "",
-          breakMinutes: attendanceSnapshot.breakMinutes ?? 0,
-          checkInAt: attendanceSnapshot.checkInAt?.toISOString() ?? null,
-          checkOutAt: attendanceSnapshot.checkOutAt?.toISOString() ?? null,
-          legacyBreakMinutes: attendanceSnapshot.legacyBreakMinutes,
-          active: attendanceSnapshot.workSessions.some((session) => !session.endedAt),
-          onBreak: attendanceSnapshot.breakSessions.some((session) => !session.endedAt),
-          currentSessionStartedAt:
-            attendanceSnapshot.workSessions.find((session) => !session.endedAt)?.startedAt.toISOString() ?? null,
-          currentBreakStartedAt:
-            attendanceSnapshot.breakSessions.find((session) => !session.endedAt)?.startedAt.toISOString() ?? null,
-          workSessions: attendanceSnapshot.workSessions.map((session) => ({
-            id: session.id,
-            startedAt: session.startedAt.toISOString(),
-            endedAt: session.endedAt?.toISOString() ?? null,
-            endReason: session.endReason,
-          })),
-          breakSessions: attendanceSnapshot.breakSessions.map((session) => ({
-            id: session.id,
-            startedAt: session.startedAt.toISOString(),
-            endedAt: session.endedAt?.toISOString() ?? null,
-            endReason: session.endReason,
-          })),
-        }
-      : null,
+    attendanceSnapshot: attendanceSnapshot ? serializeAttendanceRecord(attendanceSnapshot) : null,
   };
 
   return (

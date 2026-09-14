@@ -1,5 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { ATTENDANCE_UPDATED_EVENT, type AttendanceEnvelope } from "@/lib/attendance-client";
+import { calculateSegmentedAttendanceMetrics } from "@/lib/attendance-policy";
+import type { DashboardAttendanceSnapshot } from "@/lib/contracts/user";
 import { CalendarCheck2 } from "lucide-react";
 import { extractAttendanceOvertimeMeta } from "@/lib/attendance-overtime";
 import { DashboardWorkdayTimer } from "@/components/dashboard/dashboard-workday-timer";
@@ -16,6 +20,8 @@ type AttendanceItem = {
   departmentName: string;
   attendance: {
     id: string;
+    attendanceDate: Date;
+    revision: string;
     status: "present" | "late" | "half_day" | "absent" | "remote";
     checkInAt: Date | null;
     checkOutAt: Date | null;
@@ -50,7 +56,8 @@ export function AttendancePanel({
   const attendanceMeta = extractAttendanceOvertimeMeta(me?.attendance?.note);
   const timerSnapshot = me?.attendance
     ? {
-        attendanceDate: toDateOnly(),
+        attendanceDate: toDateOnly(me.attendance.attendanceDate),
+        revision: me.attendance.revision,
         status: me.attendance.status,
         note: attendanceMeta.text,
         breakMinutes: me.attendance.breakMinutes,
@@ -75,6 +82,29 @@ export function AttendancePanel({
         })),
       }
     : null;
+
+  const [live, setLive] = useState<{ snapshot: DashboardAttendanceSnapshot | null; clockOffset: number } | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const update = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId: string; envelope: AttendanceEnvelope }>).detail;
+      if (detail?.userId === currentUserId) {
+        const receivedAt = Date.now();
+        setNow(receivedAt);
+        setLive({ snapshot: detail.envelope.snapshot, clockOffset: new Date(detail.envelope.serverNow).getTime() - receivedAt });
+      }
+    };
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    window.addEventListener(ATTENDANCE_UPDATED_EVENT, update);
+    return () => { window.clearInterval(interval); window.removeEventListener(ATTENDANCE_UPDATED_EVENT, update); };
+  }, [currentUserId]);
+  const current = live ? live.snapshot : timerSnapshot;
+  const metrics = calculateSegmentedAttendanceMetrics({
+    attendanceDate: current?.attendanceDate ?? toDateOnly(), workSessions: current?.workSessions ?? [],
+    breakSessions: current?.breakSessions ?? [], legacyBreakMinutes: current?.legacyBreakMinutes ?? 0,
+    now: new Date(now + (live?.clockOffset ?? 0)),
+  });
+  const note = extractAttendanceOvertimeMeta(current?.note).text;
 
   return (
     /* One screen: the page never scrolls and the title stays fixed; the panels
@@ -101,15 +131,15 @@ export function AttendancePanel({
         className="dashboard-accent accent-emerald flex min-h-0 flex-1 flex-col rounded-[1.25rem] border border-[var(--panel-border)] bg-[var(--panel)] p-2.5 shadow-[var(--shadow)]"
         data-dashboard-panel
       >
-        <PanelHeader icon={CalendarCheck2} title="Today's Attendance" tone="bg-emerald-500/10 text-emerald-500" />
+        <PanelHeader icon={CalendarCheck2} title={current?.active && current.attendanceDate !== toDateOnly(new Date(now + (live?.clockOffset ?? 0))) ? "Active Attendance" : "Today's Attendance"} tone="bg-emerald-500/10 text-emerald-500" />
         <div className="dashboard-scroll-area mt-2 min-h-0 flex-1 space-y-3 pr-0.5">
           <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
             {[
-              ["Counted Work", formatMinutes(me?.attendance?.workingMinutes ?? 0)],
-              ["Active Work", formatMinutes(me?.attendance?.activeMinutes ?? 0)],
-              ["Included Break", formatMinutes(me?.attendance?.includedBreakMinutes ?? 0)],
-              ["Outside Gap", formatMinutes(me?.attendance?.outsideMinutes ?? 0)],
-              ["Overtime", formatMinutes(me?.attendance?.overtimeMinutes ?? 0)],
+              ["Counted Work", formatMinutes(metrics.workingMinutes)],
+              ["Active Work", formatMinutes(metrics.activeMinutes)],
+              ["Included Break", formatMinutes(metrics.includedBreakMinutes)],
+              ["Outside Gap", formatMinutes(metrics.outsideMinutes)],
+              ["Overtime", formatMinutes(metrics.overtimeMinutes)],
             ].map(([label, value]) => (
               <div className="rounded-xl border border-[var(--panel-border)] bg-[var(--panel-muted)] px-3 py-2.5" key={label}>
                 <p className="text-[0.6rem] font-bold uppercase tracking-[0.14em] text-[var(--muted-foreground)]">{label}</p>
@@ -118,13 +148,13 @@ export function AttendancePanel({
             ))}
           </div>
           <div className="rounded-xl border border-[var(--panel-border)] p-3 text-sm">
-            <p>Status: {me?.attendance?.status?.replace('_', ' ') ?? 'Not checked in'}</p>
-            {attendanceMeta.text ? <p className="mt-1 text-[var(--muted-foreground)]">{attendanceMeta.text}</p> : null}
+            <p>Status: {current?.status?.replace('_', ' ') ?? 'Not checked in'}</p>
+            {note ? <p className="mt-1 text-[var(--muted-foreground)]">{note}</p> : null}
             <p className="mt-2 text-xs text-[var(--muted-foreground)]">Attendance is recorded from your In, Out and Break sessions. Corrections require authorized management review.</p>
           </div>
-          {(me?.attendance?.excessBreakMinutes ?? 0) > 0 ? (
+          {(metrics.excessBreakMinutes) > 0 ? (
             <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[0.78rem] text-amber-700">
-              Excess break deducted: {formatMinutes(me?.attendance?.excessBreakMinutes ?? 0)}.
+              Excess break deducted: {formatMinutes(metrics.excessBreakMinutes)}.
             </div>
           ) : null}
         </div>

@@ -9,3 +9,22 @@ describe('attendance corrections',()=>{
  it('rejects future work',()=>expect(validate('2026-09-12',[session('10:00','20:00')],[],0,new Date('2026-09-12T19:00:00+06:00'))).toMatch(/future/));
  it('rejects excessive legacy breaks',()=>expect(validate('2026-09-12',[session('10:00','11:00')],[],65,now)).toMatch(/exceeds/));
 });
+
+describe("overnight correction validation", () => {
+  it("allows a next-day break inside the original overnight office session", () => {
+    expect(validate("2026-09-12",
+      [{ startedAt: "2026-09-12T18:00:00+06:00", endedAt: "2026-09-13T01:00:00+06:00" }],
+      [{ startedAt: "2026-09-13T00:10:00+06:00", endedAt: "2026-09-13T00:30:00+06:00" }], 0,
+      new Date("2026-09-13T02:00:00+06:00"))).toBeNull();
+  });
+  it("does not move a new office entry onto the wrong attendance date", () => {
+    expect(validate("2026-09-12",
+      [{ startedAt: "2026-09-13T00:10:00+06:00", endedAt: "2026-09-13T01:00:00+06:00" }], [], 0,
+      new Date("2026-09-13T02:00:00+06:00"))).toMatch(/attendance date/);
+  });
+  it("rejects an impossible calendar date instead of normalizing it", () => {
+    expect(validate("2026-02-30",
+      [{ startedAt: "2026-03-02T10:00:00+06:00", endedAt: "2026-03-02T11:00:00+06:00" }], [], 0,
+      new Date("2026-09-13T02:00:00+06:00"))).toMatch(/valid date/);
+  });
+});

@@ -1,3 +1,4 @@
+import { attendanceRevision } from "@/lib/attendance-record";
 import { ReminderKind, TaskStatus, UserRole } from "@prisma/client";
 import { endOfDay, startOfDay, subDays } from "date-fns";
 import { extractAssignmentAttachmentMeta } from "@/lib/assignment-attachments";
@@ -1455,7 +1456,7 @@ export async function getAttendanceData(user: {
     }),
     db.attendanceRecord.findMany({
       where: {
-        attendanceDate: new Date(today),
+        OR: [{ attendanceDate: new Date(today) }, { workSessions: { some: { endedAt: null } } }],
         user: attendanceWhere,
       },
       include: {
@@ -1466,13 +1467,17 @@ export async function getAttendanceData(user: {
     }),
   ]);
 
-  const recordMap = new Map(records.map((record) => [record.userId, record]));
+  const recordMap = new Map<string, (typeof records)[number]>();
+  for (const record of records) {
+    const previous = recordMap.get(record.userId);
+    if (!previous || record.workSessions.some(session => !session.endedAt)) recordMap.set(record.userId, record);
+  }
 
   return users.map((member) => {
     const record = recordMap.get(member.id) ?? null;
     const metrics = record
       ? calculateSegmentedAttendanceMetrics({
-          attendanceDate: today,
+          attendanceDate: toDateOnly(record.attendanceDate),
           workSessions: record.workSessions,
           breakSessions: record.breakSessions,
           legacyBreakMinutes: record.legacyBreakMinutes,
@@ -1491,6 +1496,8 @@ export async function getAttendanceData(user: {
       attendance: record
         ? {
             id: record.id,
+            attendanceDate: record.attendanceDate,
+            revision: attendanceRevision(record),
             status: record.status,
             checkInAt: record.checkInAt,
             checkOutAt: record.checkOutAt,

@@ -4,7 +4,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import Image from "next/image";
 import Link from "next/link";
 import { X } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import {
   filterTodaysWorkPlanTasks,
   getTaskDaySeed,
@@ -207,7 +207,7 @@ export function DashboardKpiCards({
             </button>
           );
         })}
-        {trailingCard}
+        <Fragment key="trailing-card">{trailingCard}</Fragment>
       </section>
 
       <Dialog.Root onOpenChange={(open) => (open ? undefined : setOpenKey(null))} open={Boolean(openCard)}>

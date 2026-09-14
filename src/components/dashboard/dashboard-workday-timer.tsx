@@ -2,16 +2,15 @@
 
 import { Coffee, LogIn, LogOut, PlayCircle, Square } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { DashboardAttendanceSnapshot } from "@/lib/contracts/user";
-import { ATTENDANCE_STARTED_EVENT, ATTENDANCE_STOPPED_EVENT } from "@/lib/dashboard-live-events";
+import { ATTENDANCE_UPDATED_EVENT, attendanceSyncKey, loadAttendance, saveAttendanceAction, publishAttendance, type AttendanceEnvelope } from "@/lib/attendance-client";
+import type { AttendanceAction } from "@/lib/attendance-action-validation";
 import { calculateSegmentedAttendanceMetrics } from "@/lib/attendance-policy";
-import { toDateOnly, toDhakaOffsetIso } from "@/lib/utils";
+import { toDateOnly } from "@/lib/utils";
 
 export type WorkdayTimerSnapshot = DashboardAttendanceSnapshot;
-
-type AttendanceAction = "check_in" | "check_out" | "break_start" | "break_end";
 
 type StoredWorkdayTimer = {
   accumulatedSeconds: number;
@@ -54,13 +53,6 @@ function formatBreakTime(startedAt: string | null, now: number) {
   if (!startedAt) return "00:00";
   const seconds = Math.max(0, Math.floor((now - new Date(startedAt).getTime()) / 1000));
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
-}
-
-function makeEventId(action: AttendanceAction) {
-  const random = typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  return `${action}-${random}`;
 }
 
 function writeShutdownSnapshot(
@@ -109,9 +101,41 @@ export function DashboardWorkdayTimer({
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [ready, setReady] = useState(false);
+  const [syncing, setSyncing] = useState(true);
   const [now, setNow] = useState(() => Date.now());
+  const [clockOffset, setClockOffset] = useState(0);
   const [attendance, setAttendance] = useState(initialAttendance);
-  const dayKey = attendance?.attendanceDate ?? toDateOnly();
+  const attendanceRef = useRef(initialAttendance);
+  const requestEpoch = useRef(0);
+  const dayKey = attendance?.attendanceDate ?? toDateOnly(new Date(now + clockOffset));
+
+  const accept = useCallback((envelope: AttendanceEnvelope, announce: boolean) => {
+    const previous = attendanceRef.current;
+    attendanceRef.current = envelope.snapshot;
+    setAttendance(envelope.snapshot);
+    const receivedAt = Date.now();
+    setNow(receivedAt);
+    setClockOffset(new Date(envelope.serverNow).getTime() - receivedAt);
+    setReady(true);
+    if (announce) {
+      publishAttendance(currentUserId, envelope, previous);
+      if (previous?.revision !== envelope.snapshot?.revision) router.refresh();
+    }
+  }, [currentUserId, router]);
+
+  const synchronize = useCallback(async (force = false) => {
+    if (savingRef.current && !force) return;
+    const epoch = ++requestEpoch.current;
+    setSyncing(true);
+    try {
+      const envelope = await loadAttendance(currentUserId);
+      if (epoch === requestEpoch.current) accept(envelope, true);
+    } catch {
+      // Keep the last confirmed state. An initial failure exposes Retry connection.
+    } finally { if (epoch === requestEpoch.current) setSyncing(false); }
+  }, [accept, currentUserId]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000);
@@ -119,94 +143,70 @@ export function DashboardWorkdayTimer({
   }, []);
 
   useEffect(() => {
-    setAttendance(initialAttendance);
-  }, [initialAttendance]);
+    const initialSync = window.setTimeout(() => void synchronize(), 0);
+    const epochRef = requestEpoch;
+    const interval = window.setInterval(() => { if (!document.hidden) void synchronize(); }, 30_000);
+    const refresh = () => { if (!document.hidden) void synchronize(); };
+    const storage = (event: StorageEvent) => { if (event.key === attendanceSyncKey(currentUserId)) void synchronize(); };
+    const updated = (event: Event) => {
+      const detail = (event as CustomEvent<{ userId: string; envelope: AttendanceEnvelope }>).detail;
+      if (detail?.userId !== currentUserId || savingRef.current) return;
+      requestEpoch.current++;
+      accept(detail.envelope, false);
+      setSyncing(false);
+    };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("storage", storage);
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener(ATTENDANCE_UPDATED_EVENT, updated);
+    return () => {
+      epochRef.current++;
+      window.clearTimeout(initialSync);
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("storage", storage);
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener(ATTENDANCE_UPDATED_EVENT, updated);
+    };
+  }, [accept, currentUserId, synchronize]);
 
   useEffect(() => {
     writeShutdownSnapshot(attendance, dayKey, currentUserId);
   }, [attendance, currentUserId, dayKey]);
 
-  const metrics = useMemo(
-    () => calculateSegmentedAttendanceMetrics({
-      attendanceDate: dayKey,
-      workSessions: attendance?.workSessions ?? [],
-      breakSessions: attendance?.breakSessions ?? [],
-      legacyBreakMinutes: attendance?.legacyBreakMinutes ?? 0,
-      now: new Date(now),
-    }),
-    [attendance, dayKey, now],
-  );
+  const metrics = useMemo(() => calculateSegmentedAttendanceMetrics({
+    attendanceDate: dayKey, workSessions: attendance?.workSessions ?? [],
+    breakSessions: attendance?.breakSessions ?? [], legacyBreakMinutes: attendance?.legacyBreakMinutes ?? 0,
+    now: new Date(now + clockOffset),
+  }), [attendance, clockOffset, dayKey, now]);
   const isRunning = Boolean(attendance?.active);
   const isBreakRunning = Boolean(attendance?.onBreak);
-  const hasCheckedInToday = Boolean(attendance?.checkInAt);
+  const hasCheckedInToday = Boolean(attendance?.checkInAt && attendance.attendanceDate === toDateOnly(new Date(now + clockOffset)));
   const showSummary = mode === "full" || mode === "summary";
   const showButton = mode === "full" || mode === "button";
 
-  async function persistAction(action: AttendanceAction, endReason?: "manual" | "device_shutdown") {
-    if (saving) return null;
+  async function persistAction(action: AttendanceAction) {
+    if (!ready || savingRef.current) return;
+    savingRef.current = true;
     setSaving(true);
+    const epoch = ++requestEpoch.current;
     try {
-      const response = await fetch("/api/dashboard/attendance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action,
-          attendanceDate: dayKey,
-          occurredAt: toDhakaOffsetIso(new Date()),
-          eventId: makeEventId(action),
-          status: attendance?.status ?? "present",
-          note: attendance?.note ?? "",
-          endReason,
-        }),
-      });
-      const raw = await response.text();
-      const result = raw ? JSON.parse(raw) : null;
-      if (!response.ok || !result?.snapshot) {
-        toast.error(result?.message ?? "Attendance update failed.");
-        return null;
+      const envelope = await saveAttendanceAction(currentUserId, action, attendanceRef.current, new Date(Date.now() + clockOffset));
+      if (epoch === requestEpoch.current) {
+        accept(envelope, true);
+        toast.success(envelope.message ?? "Attendance updated.");
       }
-      const snapshot = result.snapshot as DashboardAttendanceSnapshot;
-      setAttendance(snapshot);
-      toast.success(result.message);
-      router.refresh();
-      return snapshot;
-    } catch {
-      toast.error("Attendance could not reach the server. Your current state was not changed.");
-      return null;
-    } finally {
-      setSaving(false);
-    }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Attendance update failed. Please retry.");
+      // A lost response can follow a committed write. Read its actual state; never blindly replay an Out/Break.
+      await synchronize(true);
+    } finally { savingRef.current = false; setSaving(false); }
   }
 
-  async function checkIn() {
-    const snapshot = await persistAction("check_in");
-    if (!snapshot) return;
-    window.dispatchEvent(new CustomEvent("worklog:task-monitor-start", {
-      detail: { source: "attendance", label: "Attendance" },
-    }));
-    window.dispatchEvent(new CustomEvent(ATTENDANCE_STARTED_EVENT));
-  }
-
-  async function checkOut() {
-    const snapshot = await persistAction("check_out", "manual");
-    if (!snapshot) return;
-    window.dispatchEvent(new CustomEvent("worklog:task-monitor-stop", {
-      detail: { source: "attendance" },
-    }));
-    window.dispatchEvent(new CustomEvent(ATTENDANCE_STOPPED_EVENT));
-  }
-
-  async function startBreak() {
-    const snapshot = await persistAction("break_start");
-    if (!snapshot) return;
-    window.dispatchEvent(new CustomEvent("worklog:task-monitor-pause"));
-  }
-
-  async function endBreak() {
-    const snapshot = await persistAction("break_end");
-    if (!snapshot) return;
-    window.dispatchEvent(new CustomEvent("worklog:task-monitor-resume"));
-  }
+  const checkIn = () => persistAction("check_in");
+  const checkOut = () => persistAction("check_out");
+  const startBreak = () => persistAction("break_start");
+  const endBreak = () => persistAction("break_end");
 
   if (mode === "summary") return null;
 
@@ -215,12 +215,12 @@ export function DashboardWorkdayTimer({
       className={`button-force-white inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl px-3 text-[0.8rem] font-semibold transition sm:px-3.5 ${
         isRunning ? "bg-rose-500 hover:bg-rose-600" : "bg-emerald-500 hover:bg-emerald-600"
       } ${saving ? "cursor-not-allowed opacity-70" : ""}`}
-      disabled={saving}
-      onClick={isRunning ? checkOut : checkIn}
+      disabled={saving || (!ready && syncing)}
+      onClick={!ready ? () => void synchronize() : isRunning ? checkOut : checkIn}
       type="button"
     >
       {isRunning ? <LogOut className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
-      {saving ? "Saving..." : isRunning ? "Out" : hasCheckedInToday ? "In Again" : "In"}
+      {saving ? "Saving..." : !ready ? syncing ? "Syncing..." : "Retry connection" : isRunning ? "Out" : hasCheckedInToday ? "In Again" : "In"}
     </button>
   );
 
@@ -231,11 +231,11 @@ export function DashboardWorkdayTimer({
           isBreakRunning ? (
             <>
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 font-mono text-sm font-bold text-amber-600">
-                Break: {formatBreakTime(attendance?.currentBreakStartedAt ?? null, now)}
+                Break: {formatBreakTime(attendance?.currentBreakStartedAt ?? null, now + clockOffset)}
               </div>
               <button
                 className="button-force-white inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-3 text-[0.8rem] font-semibold transition hover:bg-amber-600"
-                disabled={saving}
+                disabled={saving || !ready}
                 onClick={endBreak}
                 type="button"
               >
@@ -247,7 +247,7 @@ export function DashboardWorkdayTimer({
           ) : (
             <button
               className="button-force-white inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-500 px-3 text-[0.8rem] font-semibold transition hover:bg-amber-600"
-              disabled={saving}
+              disabled={saving || !ready}
               onClick={startBreak}
               type="button"
             >
@@ -267,7 +267,7 @@ export function DashboardWorkdayTimer({
       {showSummary ? (
         <div className="min-w-[150px] text-right">
           <p className="topbar-text-strong font-mono text-lg font-extrabold tracking-[0.18em]">
-            {formatElapsed(metrics.workingMinutes * 60)}
+            {formatElapsed(metrics.workingSeconds)}
           </p>
           <p className="topbar-text-muted text-[11px] font-medium uppercase tracking-[0.16em]">
             {formatElapsedReadable(metrics.workingMinutes)}
@@ -278,7 +278,7 @@ export function DashboardWorkdayTimer({
       {isRunning && !isBreakRunning ? (
         <button
           className="button-force-white inline-flex h-9 items-center gap-1.5 rounded-xl bg-amber-500 px-3 text-xs font-semibold hover:bg-amber-600"
-          disabled={saving}
+          disabled={saving || !ready}
           onClick={startBreak}
           type="button"
         >
@@ -288,7 +288,7 @@ export function DashboardWorkdayTimer({
       {isBreakRunning ? (
         <button
           className="button-force-white inline-flex h-9 items-center gap-1.5 rounded-xl bg-amber-500 px-3 text-xs font-semibold hover:bg-amber-600"
-          disabled={saving}
+          disabled={saving || !ready}
           onClick={endBreak}
           type="button"
         >

@@ -41,7 +41,7 @@ function dhakaBoundary(attendanceDate: string, hour: number) {
 }
 
 function minutes(milliseconds: number) {
-  return Math.max(0, Math.round(milliseconds / 60_000));
+  return Math.max(0, Math.floor(milliseconds / 60_000));
 }
 
 function normalizeIntervals(intervals: AttendanceInterval[], now: Date) {
@@ -51,7 +51,8 @@ function normalizeIntervals(intervals: AttendanceInterval[], now: Date) {
       const start = validDate(interval.startedAt)?.getTime();
       const explicitEnd = validDate(interval.endedAt)?.getTime();
       if (!Number.isFinite(start)) return null;
-      const end = Number.isFinite(explicitEnd) ? explicitEnd as number : nowMs;
+      if (interval.endedAt != null && !Number.isFinite(explicitEnd)) return null;
+      const end = Number.isFinite(explicitEnd) ? Math.min(explicitEnd as number, nowMs) : nowMs;
       if (end <= (start as number)) return null;
       return { start: start as number, end };
     })
@@ -68,6 +69,17 @@ function normalizeIntervals(intervals: AttendanceInterval[], now: Date) {
     }
   }
   return merged;
+}
+
+function intersectIntervals(left: MillisecondInterval[], right: MillisecondInterval[]) {
+  const result: MillisecondInterval[] = [];
+  let i = 0, j = 0;
+  while (i < left.length && j < right.length) {
+    const start = Math.max(left[i].start, right[j].start), end = Math.min(left[i].end, right[j].end);
+    if (end > start) result.push({ start, end });
+    if (left[i].end <= right[j].end) i++; else j++;
+  }
+  return result;
 }
 
 function totalDuration(intervals: MillisecondInterval[]) {
@@ -90,55 +102,34 @@ function durationAfter(intervals: MillisecondInterval[], boundary: number) {
 export function calculateSegmentedAttendanceMetrics(input: SegmentedAttendanceCalculationInput) {
   const now = validDate(input.now) ?? new Date();
   const workSessions = normalizeIntervals(input.workSessions, now);
-  const breakSessions = normalizeIntervals(input.breakSessions ?? [], now);
-  const legacyBreakMinutes = Math.max(0, Math.round(Number(input.legacyBreakMinutes ?? 0) || 0));
-  const segmentedBreakMilliseconds = totalDuration(breakSessions);
-  const segmentedBreakMinutes = minutes(segmentedBreakMilliseconds);
-  const breakMinutes = legacyBreakMinutes + segmentedBreakMinutes;
-  const includedBreakMinutes = Math.min(breakMinutes, ATTENDANCE_INCLUDED_BREAK_MINUTES);
-  const excessBreakMinutes = Math.max(0, breakMinutes - ATTENDANCE_INCLUDED_BREAK_MINUTES);
-  const sessionMilliseconds = totalDuration(workSessions);
-  const sessionMinutes = minutes(sessionMilliseconds);
-
-  if (!workSessions.length) {
-    return {
-      presenceMinutes: 0,
-      sessionMinutes: 0,
-      activeMinutes: 0,
-      outsideMinutes: 0,
-      workingMinutes: 0,
-      shortfallMinutes: ATTENDANCE_SCHEDULED_MINUTES,
-      breakMinutes,
-      includedBreakMinutes,
-      excessBreakMinutes,
-      overtimeMinutes: 0,
-    };
-  }
-
-  const firstStartedAt = workSessions[0].start;
-  const lastEndedAt = workSessions[workSessions.length - 1].end;
-  const presenceMinutes = minutes(lastEndedAt - firstStartedAt);
-  const outsideMinutes = Math.max(0, presenceMinutes - sessionMinutes);
-  const activeMinutes = Math.max(0, sessionMinutes - breakMinutes);
-  const workingMinutes = Math.max(0, sessionMinutes - excessBreakMinutes);
+  // Invalid/legacy break fragments outside office sessions never deduct outside time twice.
+  const breakSessions = intersectIntervals(normalizeIntervals(input.breakSessions ?? [], now), workSessions);
+  const legacy = Number(input.legacyBreakMinutes ?? 0);
+  const legacyBreakMs = (Number.isFinite(legacy) ? Math.max(0, Math.round(legacy)) : 0) * 60_000;
+  const sessionMs = totalDuration(workSessions);
+  const breakMs = workSessions.length ? legacyBreakMs + totalDuration(breakSessions) : 0;
+  const includedMs = Math.min(breakMs, ATTENDANCE_INCLUDED_BREAK_MINUTES * 60_000);
+  const excessMs = Math.max(0, breakMs - includedMs);
+  const presenceMs = workSessions.length ? workSessions.at(-1)!.end - workSessions[0].start : 0;
+  const workingMs = Math.max(0, sessionMs - excessMs);
+  const activeMs = Math.max(0, sessionMs - breakMs);
   const shiftEnd = dhakaBoundary(input.attendanceDate, ATTENDANCE_SHIFT_END_HOUR).getTime();
-  const overtimeMilliseconds = Math.max(
-    0,
-    durationAfter(workSessions, shiftEnd) - durationAfter(breakSessions, shiftEnd),
-  );
-  const overtimeMinutes = minutes(overtimeMilliseconds);
+  const overtimeMs = Number.isFinite(shiftEnd) ? Math.max(0,
+    durationAfter(workSessions, shiftEnd) - durationAfter(breakSessions, shiftEnd)) : 0;
 
+  // Calculate from exact durations before rounding once; no credit for unfinished minutes.
   return {
-    presenceMinutes,
-    sessionMinutes,
-    activeMinutes,
-    outsideMinutes,
-    workingMinutes,
-    shortfallMinutes: Math.max(0, ATTENDANCE_SCHEDULED_MINUTES - workingMinutes),
-    breakMinutes,
-    includedBreakMinutes,
-    excessBreakMinutes,
-    overtimeMinutes,
+    presenceMinutes: minutes(presenceMs),
+    sessionMinutes: minutes(sessionMs),
+    activeMinutes: minutes(activeMs),
+    outsideMinutes: minutes(Math.max(0, presenceMs - sessionMs)),
+    workingMinutes: minutes(workingMs),
+    workingSeconds: Math.floor(workingMs / 1000),
+    shortfallMinutes: Math.max(0, ATTENDANCE_SCHEDULED_MINUTES - minutes(workingMs)),
+    breakMinutes: minutes(breakMs),
+    includedBreakMinutes: minutes(includedMs),
+    excessBreakMinutes: minutes(excessMs),
+    overtimeMinutes: minutes(overtimeMs),
   };
 }
 
