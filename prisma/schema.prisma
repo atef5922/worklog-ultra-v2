@@ -211,6 +211,7 @@ model SignupVerificationCode {
 }
 
 model DailyTask {
+  timerStates TaskTimerState[]
   projectName String? @map("project_name")
   clientName String? @map("client_name")
   dueAt DateTime? @map("due_at") @db.Timestamptz(6)
@@ -237,6 +238,23 @@ model DailyTask {
 
   @@index([userId, planDate])
   @@map("daily_tasks")
+}
+
+model TaskTimerState {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  taskId String @map("task_id") @db.Uuid
+  task DailyTask @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  reportDate DateTime @map("report_date") @db.Date
+  version Int @default(0)
+  trackedMilliseconds Int @default(0) @map("tracked_milliseconds")
+  actualStart DateTime? @map("actual_start") @db.Timestamptz(6)
+  actualEnd DateTime? @map("actual_end") @db.Timestamptz(6)
+  runningStartedAt DateTime? @map("running_started_at") @db.Timestamptz(6)
+  lastCommandId String? @map("last_command_id")
+  lastAction String? @map("last_action")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  @@unique([taskId, reportDate])
+  @@map("task_timer_states")
 }
 
 model EmployeePresence {

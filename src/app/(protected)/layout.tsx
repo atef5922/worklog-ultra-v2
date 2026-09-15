@@ -1,14 +1,10 @@
 import { serializeAttendanceRecord } from "@/lib/attendance-record";
-import { AppCloseTimerStop } from "@/components/dashboard/app-close-timer-stop";
-import { AssignmentNotificationLive } from "@/components/dashboard/assignment-notification-live";
+import { TaskTimerProvider } from "@/components/dashboard/task-timer-provider";
 import { DashboardHeader } from "@/components/dashboard/header";
 import { Sidebar } from "@/components/dashboard/sidebar";
-import { TaskTimerAutoCloser } from "@/components/dashboard/task-timer-auto-closer";
 import { TaskScreenshotMonitor } from "@/components/dashboard/task-screenshot-monitor";
-import { WorkspaceNoticeLive } from "@/components/dashboard/workspace-notice-live";
 import { DashboardMotionShell } from "@/components/motion/dashboard-motion-shell";
 import { requireUser } from "@/lib/auth/server";
-import { EmployeePresence } from '@/components/management/employee-presence';
 import { AccessRefresh } from "@/components/management/access-refresh";
 import { roleUiTitle } from "@/lib/auth/roles";
 import type { DashboardHeaderUser, DashboardSidebarUser } from "@/lib/contracts/user";
@@ -71,14 +67,11 @@ export default async function ProtectedLayout({
         <div className="dashboard-scroll flex min-h-dvh min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto md:h-screen">
           <DashboardHeader user={headerUser} />
           <main className="flex min-h-0 flex-1 flex-col px-3 py-4 sm:px-4 sm:py-5 xl:px-6 2xl:px-7">
-            <AppCloseTimerStop />
+            <TaskTimerProvider key={user.id} userId={user.id}>
             <AccessRefresh version={user.accessVersion} />
-            <EmployeePresence />
-            <AssignmentNotificationLive />
-            <TaskTimerAutoCloser />
-            <WorkspaceNoticeLive />
             <DashboardMotionShell>{children}</DashboardMotionShell>
             <TaskScreenshotMonitor currentUserId={user.id} />
+            </TaskTimerProvider>
           </main>
         </div>
       </div>

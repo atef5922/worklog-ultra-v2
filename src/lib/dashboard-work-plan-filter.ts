@@ -80,24 +80,26 @@ export function getTaskDaySeed<U extends WorkPlanTaskUpdate>(
   const rawEnd = exactUpdate?.actualEnd ?? null;
   const dayStart = new Date(`${date}T00:00:00+06:00`).getTime();
   const dayEnd = getNextDhakaMidnightTimestamp(date);
-  const now = Date.now();
   const startTime = parseDhakaDateTime(rawStart)?.getTime() ?? Number.NaN;
   const endTime = parseDhakaDateTime(rawEnd)?.getTime() ?? Number.NaN;
   const actualStart =
     rawStart &&
     Number.isFinite(startTime) &&
     startTime >= dayStart &&
-    startTime < dayEnd &&
-    startTime <= now
+    startTime < dayEnd
       ? rawStart
       : null;
+  // Saved timestamps have already been validated on the server. The viewer's
+  // clock is not authoritative; retain day/order checks for malformed legacy data.
+  // Done without Start records completion evidence, but never fabricates work time.
+  const zeroTimeCompletion =
+    status === "done" && !rawStart && (exactUpdate?.trackedMinutes ?? 0) === 0;
   const actualEnd =
     rawEnd &&
-    actualStart &&
     Number.isFinite(endTime) &&
-    endTime >= startTime &&
+    endTime >= dayStart &&
     endTime <= dayEnd &&
-    endTime <= now
+    (actualStart ? endTime >= startTime : zeroTimeCompletion)
       ? rawEnd
       : null;
 

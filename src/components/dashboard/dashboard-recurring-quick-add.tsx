@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { PanelHeader } from "@/components/dashboard/panel-header";
 import { RecurringTasksCenter } from "@/components/dashboard/recurring-tasks-center";
+import { toDateOnly } from "@/lib/utils";
 import {
   DASHBOARD_TASKS_CREATED_EVENT,
   DASHBOARD_TASKS_REMOVED_EVENT,
@@ -151,7 +152,7 @@ export function DashboardRecurringQuickAdd({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        planDate: new Date().toISOString(),
+        planDate: toDateOnly(),
         tasks: [
           {
             taskTitle: template.taskTitle,

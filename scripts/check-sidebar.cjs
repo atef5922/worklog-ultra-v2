@@ -9,10 +9,11 @@ const { chromium } = require('playwright-core');
 
 const root = path.resolve(__dirname, '..');
 const artifactDir = path.join(root, '.next/sidebar-check');
+const appUrl = process.env.APP_URL || 'http://localhost:3000';
 
 async function run() {
   fs.mkdirSync(artifactDir, {recursive:true});
-  const sourceHtml = await (await fetch('http://localhost:3000/auth/login')).text();
+  const sourceHtml = await (await fetch(appUrl + '/auth/login')).text();
   const styles = [...sourceHtml.matchAll(/<link[^>]+rel="stylesheet"[^>]*>/g)].map(match => /href="([^"]+)"/.exec(match[0])?.[1]).filter(Boolean);
   assert(styles.length, 'Could not find actual application CSS');
   const htmlClass = /<html[^>]*class="([^"]+)"/.exec(sourceHtml)?.[1] || '';
@@ -25,7 +26,7 @@ async function run() {
     if (req.url==='/fixture.js') {res.setHeader('content-type','text/javascript');res.end(bundle.outputFiles[0].text);return;}
     if(req.url.startsWith('/api/')) {res.setHeader('content-type','application/json');res.end('{"success":true,"notices":[]}');return;}
     res.setHeader('content-type','text/html');
-    res.end(`<!doctype html><html class="${htmlClass}" data-sidebar-collapsed="true"><head>${styles.map(href=>`<link rel="stylesheet" href="http://localhost:3000${href}">`).join('')}</head><body><div id="root"></div><script src="/fixture.js"></script></body></html>`);
+    res.end(`<!doctype html><html class="${htmlClass}" data-sidebar-collapsed="true"><head>${styles.map(href=>`<link rel="stylesheet" href="${appUrl}${href}">`).join('')}</head><body><div id="root"></div><script src="/fixture.js"></script></body></html>`);
   });
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   const browser = await chromium.launch({channel:'msedge',headless:true});
@@ -67,6 +68,8 @@ async function run() {
       const data=await checkFit(page,'.dashboard-sidebar');
       if(height>=560) assert.equal(data.rows.length,13,'Every Super Admin menu should fit without pagination');
       if(width===1365&&height===636) {
+        const expandedRail=await page.locator('.dashboard-sidebar').boundingBox();
+        assert(expandedRail.width<=205&&expandedRail.width>=190,`Expanded sidebar should remain compact: ${expandedRail.width}px`);
         const clipped=await page.locator('.dashboard-sidebar nav [data-sidebar-label]').evaluateAll(labels=>labels.filter(label=>label.scrollWidth>label.clientWidth+1).map(label=>label.textContent));
         assert.deepEqual(clipped,[],'Expanded navigation labels should fit');
         await page.screenshot({path:path.join(artifactDir,'desktop-expanded.png')});

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => {
-  const tx = { $queryRaw: vi.fn(), user: { findUnique: vi.fn() },
-    attendanceRecord: { findFirst: vi.fn(), findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), update: vi.fn() },
+  const tx = { dailyTask:{findMany:vi.fn().mockResolvedValue([])}, $queryRaw: vi.fn(), user: { findUnique: vi.fn() },
+    attendanceRecord: { findMany:vi.fn().mockResolvedValue([]), findFirst: vi.fn(), findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), update: vi.fn() },
     attendanceWorkSession: { findMany: vi.fn(), update: vi.fn(), create: vi.fn() },
     attendanceBreakSession: { update: vi.fn(), create: vi.fn() }, managementAuditLog: { create: vi.fn() } };
   return { auth: vi.fn(), tx, transaction: vi.fn() };

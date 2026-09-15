@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import { ThemeScript } from "@/components/theme/theme-script";
-import { AppToaster } from "@/components/ui/toaster";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -35,7 +34,6 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <ThemeScript />
         {children}
-        <AppToaster />
       </body>
     </html>
   );

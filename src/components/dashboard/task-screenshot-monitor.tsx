@@ -1,12 +1,9 @@
 "use client";
 
-import { Camera } from "lucide-react";
-import { usePathname } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 export function TaskScreenshotMonitor({ currentUserId }: { currentUserId: string }) {
-  const pathname = usePathname();
-  const [status, setStatus] = useState<WorklogTrackerStatus | null>(null);
+  const [, setStatus] = useState<WorklogTrackerStatus | null>(null);
   /*
    * The desktop preload can attach `window.worklogDesktop` after React hydrates.
    * With an empty subscribe this was read exactly once, so any reload that beat
@@ -76,43 +73,7 @@ export function TaskScreenshotMonitor({ currentUserId }: { currentUserId: string
     // not only when the component happened to mount after it.
   }, [currentUserId, isDesktop]);
 
-  const statusLabel = !isDesktop
-    ? "Open the WorkLog desktop app to enable native screenshots."
-    : status?.paused
-      ? "Paused for break — resumes automatically when the break ends."
-      : status?.running
-        ? `Monitoring active · every 5 min · ${status.pending} pending upload${status.pending === 1 ? "" : "s"}`
-        : "Ready — Attendance Start begins capture.";
-
-  // Keep the listener/effect layer mounted: task timers still need to reach the
-  // native screenshot bridge. Only the old visual utility strip is removed from
-  // the redesigned dashboard.
-  if (pathname === "/dashboard" || pathname === "/dashboard/plan") {
-    return null;
-  }
-
-  return (
-    <section
-      className="dashboard-monitor-strip mt-2.5 shrink-0 rounded-xl border border-[var(--panel-border)] bg-[var(--panel)] px-2.5 py-1.5"
-      data-page-section
-    >
-      {/* One compact line: this is a utility strip, not a panel — every pixel
-          it gives back goes to the work plan above it. */}
-      <div className="flex items-center gap-2.5">
-        <span
-          className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${
-            status?.paused
-              ? "bg-amber-500/12 text-amber-500"
-              : status?.running
-                ? "bg-emerald-500/12 text-emerald-500"
-                : "bg-slate-500/10 text-slate-500"
-          }`}
-        >
-          <Camera className="h-3.5 w-3.5" />
-        </span>
-        <p className="shrink-0 text-[0.78rem] font-bold text-[var(--foreground)]">Screen Monitoring</p>
-        <p className="min-w-0 flex-1 truncate text-[0.72rem] text-[var(--muted-foreground)]">{statusLabel}</p>
-      </div>
-    </section>
-  );
+  // Keep the existing native-bridge listeners mounted, without rendering a
+  // Screen Monitoring section or reserving layout space on any page.
+  return null;
 }

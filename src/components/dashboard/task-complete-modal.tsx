@@ -17,6 +17,7 @@ type TaskCompleteModalProps = {
   onOpenChange: (open: boolean) => void;
   taskTitle: string;
   saving?: boolean;
+  error?: string | null;
   onSave: (payload: TaskCompletionPayload) => Promise<void>;
 };
 
@@ -25,6 +26,7 @@ export function TaskCompleteModal({
   onOpenChange,
   taskTitle,
   saving = false,
+  error,
   onSave,
 }: TaskCompleteModalProps) {
   const [completionNote, setCompletionNote] = useState("");
@@ -62,6 +64,7 @@ export function TaskCompleteModal({
           </div>
 
           <div className="space-y-5 px-6 py-6">
+            {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"><p>{error}</p><p className="mt-1 text-xs">Your note is still here. This dialog will not overwrite newer task changes.</p></div>}
             <div>
               <Label className="mb-2 block">Task completion status</Label>
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">

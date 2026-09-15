@@ -18,7 +18,16 @@ const nextConfig = {
   },
   // Desktop build output and runtime uploads live inside the project. Without
   // this the dev file watcher walks ~1.8GB of packaged binaries on every change.
-  webpack(config) {
+  webpack(config, { dev, isServer }) {
+    // Development-only workaround for overlapping stylesheet cleanup in Next CSS HMR.
+    // Production bundles and application DOM behavior remain unchanged.
+    if (dev && !isServer) {
+      config.module.rules.push({
+        test: /next[\\/]dist[\\/]compiled[\\/]mini-css-extract-plugin[\\/]hmr[\\/]hotModuleReplacement\.js$/,
+        enforce: "pre",
+        use: [{ loader: require.resolve("./scripts/webpack/safe-css-hmr-cleanup.cjs") }],
+      });
+    }
     config.watchOptions = {
       ...config.watchOptions,
       ignored: ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/release/**", "**/public/uploads/**"],

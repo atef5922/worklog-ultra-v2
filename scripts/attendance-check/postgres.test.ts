@@ -1,3 +1,4 @@
+import {timerCases} from "./timer-cases";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,6 +17,7 @@ import { postAttendance } from "@/lib/attendance-service";
 import { PUT } from "@/app/api/management/attendance/route";
 import { actorInclude, type Actor } from "@/lib/management/server";
 import { attendanceInclude, attendanceRevision } from "@/lib/attendance-record";
+import { createWorkPlan } from "@/lib/management/plan-actions";
 
 const authContext = new AsyncLocalStorage<Actor>();
 const d = (value: string) => new Date(value);
@@ -81,9 +83,59 @@ describe("real PostgreSQL attendance invariants (synthetic isolated data)", () =
   it("recovers multiple open attendance days by closing the older day at the next entry boundary", async () => {
     const old = await seed("2026-09-13", [["2026-09-13T18:00:00+06:00", null]]);
     const today = await seed("2026-09-14", [["2026-09-14T10:00:00+06:00", null]]);
-    expect((await post(action("check_out", today))).status).toBe(409);
-    expect((await correct(correction(old, [["2026-09-13T18:00:00+06:00", "2026-09-14T10:00:00+06:00"]], true))).status).toBe(200);
     expect((await post(action("check_out", today))).status).toBe(200);
+    const repaired = await reread(old.id), checkedOut = await reread(today.id);
+    expect(repaired.workSessions[0].endedAt).toEqual(d("2026-09-14T10:00:00+06:00"));
+    expect(repaired.workSessions[0].endReason).toBe("reconciled_next_entry");
+    expect(checkedOut.workSessions[0].endedAt).toEqual(d("2026-09-14T13:00:00+06:00"));
+    const audit = await db.managementAuditLog.findFirstOrThrow({where:{targetId:employee.id,action:"attendance.auto_reconciled"}});
+    expect(JSON.stringify(audit.beforeValue)).toContain('"endedAt":null');
+    expect(JSON.stringify(audit.afterValue)).toContain('"endReason":"reconciled_next_entry"');
+  });
+  it("reconciles a chain of open days without double-counting any boundary", async () => {
+    const first = await seed("2026-09-12", [["2026-09-12T18:00:00+06:00", null]]);
+    const second = await seed("2026-09-13", [["2026-09-13T09:30:00+06:00", null]]);
+    const today = await seed("2026-09-14", [["2026-09-14T10:15:00+06:00", null]]);
+    expect((await post(action("check_out", today))).status).toBe(200);
+    expect((await reread(first.id)).workSessions[0].endedAt).toEqual(d("2026-09-13T09:30:00+06:00"));
+    expect((await reread(second.id)).workSessions[0].endedAt).toEqual(d("2026-09-14T10:15:00+06:00"));
+    expect(await db.managementAuditLog.count({where:{targetId:employee.id,action:"attendance.auto_reconciled"}})).toBe(2);
+  });
+  it("closes an older running break at the same next-entry boundary", async () => {
+    const old = await seed("2026-09-13", [["2026-09-13T18:00:00+06:00", null]]);
+    await db.attendanceBreakSession.create({data:{
+      attendanceRecordId:old.id,startedAt:d("2026-09-13T19:00:00+06:00"),clientEventId:randomUUID(),
+    }});
+    const today = await seed("2026-09-14", [["2026-09-14T10:00:00+06:00", null]]);
+    expect((await post(action("check_out", today))).status).toBe(200);
+    const repaired = await reread(old.id);
+    expect(repaired.breakSessions[0].endedAt).toEqual(d("2026-09-14T10:00:00+06:00"));
+    expect(repaired.breakSessions[0].endReason).toBe("reconciled_next_entry");
+    expect(repaired.breakMinutes).toBe(900);
+    expect(repaired.workingMinutes).toBe(105);
+  });
+  it("rolls back reconciliation and checkout together when its audit cannot be stored", async () => {
+    const old = await seed("2026-09-13", [["2026-09-13T18:00:00+06:00", null]]);
+    const today = await seed("2026-09-14", [["2026-09-14T10:00:00+06:00", null]]);
+    await db.$executeRawUnsafe("CREATE FUNCTION reject_reconciliation_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'attendance.auto_reconciled' THEN RAISE EXCEPTION 'synthetic reconciliation audit failure'; END IF; RETURN NEW; END; $$");
+    await db.$executeRawUnsafe("CREATE TRIGGER reject_reconciliation_audit BEFORE INSERT ON management_audit_logs FOR EACH ROW EXECUTE FUNCTION reject_reconciliation_audit()");
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect((await post(action("check_out", today))).status).toBe(500);
+      expect((await reread(old.id)).workSessions[0].endedAt).toBeNull();
+      expect((await reread(today.id)).workSessions[0].endedAt).toBeNull();
+    } finally {
+      log.mockRestore();
+      await db.$executeRawUnsafe("DROP TRIGGER reject_reconciliation_audit ON management_audit_logs");
+      await db.$executeRawUnsafe("DROP FUNCTION reject_reconciliation_audit()");
+    }
+  });
+  it("keeps same-day duplicate open sessions blocked because their checkout boundary is ambiguous", async () => {
+    const row = await seed("2026-09-14", [["2026-09-14T10:00:00+06:00", null], ["2026-09-14T11:00:00+06:00", null]]);
+    const response = await post(action("check_out", row));
+    expect(response.status).toBe(409);
+    expect((await response.json()).message).toMatch(/conflicting sessions/i);
+    expect((await reread(row.id)).workSessions.every(session => session.endedAt === null)).toBe(true);
   });
   it("rejects an account-switched first In without writing either account's attendance", async () => {
     const response = await authContext.run(manager, () => postAttendance(action("check_in", null, employee.id)));
@@ -133,3 +185,24 @@ describe("real PostgreSQL attendance invariants (synthetic isolated data)", () =
     }
   });
 });
+
+describe("work-plan transaction locking", () => {
+  it("creates a task without attempting to deserialize PostgreSQL void", async () => {
+    const department = await db.department.create({data:{name:"Synthetic plan department "+randomUUID()}});
+    await db.user.update({where:{id:employee.id},data:{departmentId:department.id}});
+    const request = new Request("http://localhost:3000/api/dashboard/plan", {
+      method: "POST",
+      headers: {origin:"http://localhost:3000","Content-Type":"application/json"},
+      body: JSON.stringify({
+        planDate:"2026-09-14",
+        tasks:[{taskTitle:"Synthetic advisory-lock task",taskDescription:"Regression coverage",priority:"critical",departmentId:department.id,assigneeId:employee.id}],
+      }),
+    });
+    const response = await authContext.run(employee,()=>createWorkPlan(request));
+    expect(response.status).toBe(200);
+    expect((await response.json()).message).toBe("Task list saved successfully.");
+    expect(await db.dailyTask.count({where:{userId:employee.id,planDate:d("2026-09-14")}})).toBe(1);
+  });
+});
+
+describe("server-authoritative task timers",()=>timerCases(()=>employee,(actor,fn)=>authContext.run(actor,fn)));

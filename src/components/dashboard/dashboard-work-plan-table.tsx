@@ -1,6 +1,6 @@
 "use client";
 
-import { completePersonalTask, reopenPersonalTask, type ConfirmedTaskUpdate } from "@/lib/task-workflow-client";
+import { captureTaskLifecycleSnapshot, type CapturedTaskTimerSnapshot, completePersonalTask, reopenPersonalTask, type ConfirmedTaskUpdate } from "@/lib/task-workflow-client";
 
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { ListChecks, LockKeyhole, RotateCcw, Search, Timer } from "lucide-react";
@@ -27,9 +27,9 @@ import {
 } from "@/components/ui/select";
 import {
   DashboardTaskTimerAction,
+  TaskTimerObserver,
   type TaskTimerSnapshot,
 } from "@/components/dashboard/dashboard-task-timer-action";
-import { TaskAutoStopNoteModal } from "@/components/dashboard/task-auto-stop-note-modal";
 import {
   TaskCompleteModal,
   type TaskCompletionPayload,
@@ -44,12 +44,6 @@ import {
   DASHBOARD_TASKS_CREATED_EVENT,
   type DashboardLiveTask,
 } from "@/lib/dashboard-live-events";
-import {
-  readPendingTaskAutoStopNotes,
-  removePendingTaskAutoStopNote,
-  TASK_AUTO_STOP_NOTE_EVENT,
-  type TaskAutoStopNotePayload,
-} from "@/lib/task-auto-stop-note";
 import {
   countDashboardTaskStats,
   filterTodaysWorkPlanTasks,
@@ -368,6 +362,12 @@ export function buildTaskDetails(
   };
 }
 
+type WorkPlanLifecycleDialog = {
+  task: DashboardWorkPlanTask;
+  snapshot: CapturedTaskTimerSnapshot;
+  seed: {actualEnd: string | null; note: string | null; trackedMinutes: number};
+};
+
 export function DashboardWorkPlanSection({
   tasks: initialTasks,
   canEdit,
@@ -382,19 +382,15 @@ export function DashboardWorkPlanSection({
   const [selectedFilter, setSelectedFilter] =
     useState<DashboardWorkPlanFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [completeTaskId, setCompleteTaskId] = useState<string | null>(null);
+  const [completeDialog, setCompleteDialog] = useState<WorkPlanLifecycleDialog | null>(null);
+  const completeTaskId = completeDialog?.task.id ?? null;
+  const [completionError, setCompletionError] = useState<string | null>(null);
+  const [reopenError, setReopenError] = useState<string | null>(null);
   const [detailsTask, setDetailsTask] = useState<TaskDetails | null>(null);
   const [savingCompletion, setSavingCompletion] = useState(false);
   const lifecycleSavingRef = useRef(false);
-  const [autoStopQueue, setAutoStopQueue] = useState<TaskAutoStopNotePayload[]>(
-    () =>
-      typeof window === "undefined" ? [] : readPendingTaskAutoStopNotes(),
-  );
-  const [savingAutoStopNote, setSavingAutoStopNote] = useState(false);
   const [reopeningTaskId, setReopeningTaskId] = useState<string | null>(null);
-  const [reopenDialogTaskId, setReopenDialogTaskId] = useState<string | null>(
-    null,
-  );
+  const [reopenDialog, setReopenDialog] = useState<WorkPlanLifecycleDialog | null>(null);
   const [savingPriorityTaskId, setSavingPriorityTaskId] = useState<
     string | null
   >(null);
@@ -438,34 +434,6 @@ export function DashboardWorkPlanSection({
       window.removeEventListener(
         DASHBOARD_TASKS_CREATED_EVENT,
         handleTasksCreated,
-      );
-  }, []);
-
-  useEffect(() => {
-    function handleAutoStopNoteNeeded(event: Event) {
-      const detail = (event as CustomEvent<TaskAutoStopNotePayload>).detail;
-      if (!detail?.taskId || !detail.reportDate) return;
-
-      setAutoStopQueue((current) =>
-        [
-          ...current.filter(
-            (entry) =>
-              entry.taskId !== detail.taskId ||
-              entry.reportDate !== detail.reportDate,
-          ),
-          detail,
-        ].sort((left, right) => left.timestamp - right.timestamp),
-      );
-    }
-
-    window.addEventListener(
-      TASK_AUTO_STOP_NOTE_EVENT,
-      handleAutoStopNoteNeeded,
-    );
-    return () =>
-      window.removeEventListener(
-        TASK_AUTO_STOP_NOTE_EVENT,
-        handleAutoStopNoteNeeded,
       );
   }, []);
 
@@ -620,18 +588,25 @@ export function DashboardWorkPlanSection({
     [matchingTasks],
   );
 
-  const completingTask =
-    tasks.find((task) => task.id === completeTaskId) ?? null;
-  const reopenDialogTask =
-    tasks.find((task) => task.id === reopenDialogTaskId) ?? null;
-  const reopenDialogSeed = reopenDialogTask
-    ? getTaskDaySeed(reopenDialogTask)
-    : null;
-  const activeAutoStopPrompt = autoStopQueue[0] ?? null;
-  const activeAutoStopTask = activeAutoStopPrompt
-    ? tasks.find((task) => task.id === activeAutoStopPrompt.taskId) ?? null
-    : null;
-
+  const completingTask = completeDialog?.task ?? null;
+  const reopenDialogTask = reopenDialog?.task ?? null;
+  const reopenDialogSeed = reopenDialog?.seed ?? null;
+  function openTaskLifecycleDialog(taskId: string, action: "complete" | "reopen") {
+    if (lifecycleSavingRef.current) return;
+    const task = tasks.find(item => item.id === taskId);
+    if (!task) return;
+    try {
+      const snapshot = captureTaskLifecycleSnapshot(timerSnapshotsRef.current[taskId], currentUserId);
+      const daySeed = getTaskDaySeed(task, snapshot.reportDate);
+      const dialog: WorkPlanLifecycleDialog = {task: {...task}, snapshot, seed: {
+        actualEnd: snapshot.actualEnd || null,
+        note: snapshot.note === undefined ? daySeed.note : snapshot.note,
+        trackedMinutes: Number(snapshot.trackedMinutes),
+      }};
+      if (action === "complete") {setCompletionError(null); setCompleteDialog(dialog);}
+      else {setReopenError(null); setReopenDialog(dialog);}
+    } catch (error) {toast.error(error instanceof Error ? error.message : "Wait for the task timer to synchronize.");}
+  }
   async function saveTaskField(
     task: DashboardWorkPlanTask,
     field: DashboardEditableTaskField,
@@ -776,138 +751,55 @@ export function DashboardWorkPlanSection({
     setLiveTaskIds(current => ({ ...current, [taskId]: "" }));
   }
 
-  async function reopenCompletedTask(task: DashboardWorkPlanTask, reopenReason: string) {
+  async function reopenCompletedTask(dialog: WorkPlanLifecycleDialog, reopenReason: string) {
+    const task = dialog.task;
     if (lifecycleSavingRef.current) return;
     lifecycleSavingRef.current = true;
     setReopeningTaskId(task.id);
+    setReopenError(null);
     try {
-      const result = await reopenPersonalTask(task.id, reopenReason);
+      const result = await reopenPersonalTask(task.id, reopenReason, dialog.snapshot);
       applyConfirmedTask(task.id, result.update, true);
-      setReopenDialogTaskId(null);
+      timerSnapshotsRef.current[task.id]=result.snapshot;
+      setReopenDialog(null);
       toast.success(result.message);
       router.refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not reopen task. Please try again.");
+      const message = error instanceof Error ? error.message : "Could not reopen task. Please try again.";
+      setReopenError(message); toast.error(message);
     } finally {
       lifecycleSavingRef.current = false;
       setReopeningTaskId(null);
     }
   }
 
-  function dismissAutoStopPrompt(taskId: string, reportDate: string) {
-    removePendingTaskAutoStopNote(reportDate, taskId);
-    setAutoStopQueue((current) =>
-      current.filter(
-        (entry) =>
-          entry.taskId !== taskId || entry.reportDate !== reportDate,
-      ),
-    );
-  }
-
   async function handleCompleteSave(payload: TaskCompletionPayload) {
-    if (!completingTask || lifecycleSavingRef.current) return;
-    const taskId = completingTask.id;
-    const seed = getTaskDaySeed(completingTask);
-    const snapshot = timerSnapshotsRef.current[taskId] ?? {
-      status: seed.status, trackedMinutes: String(seed.trackedMinutes), trackedSeconds: String(seed.trackedMinutes * 60),
-      actualStart: seed.actualStart ? String(seed.actualStart) : "", actualEnd: seed.actualEnd ? String(seed.actualEnd) : "", runningStartedAt: "",
-    };
+    if (!completeDialog || lifecycleSavingRef.current) return;
+    const taskId = completeDialog.task.id;
+    const snapshot = completeDialog.snapshot;
     lifecycleSavingRef.current = true;
     setSavingCompletion(true);
+    setCompletionError(null);
     try {
       const result = await completePersonalTask(taskId, payload.completionNote, snapshot);
       applyConfirmedTask(taskId, result.update, false);
-      setCompleteTaskId(null);
+      timerSnapshotsRef.current[taskId]=result.snapshot;
+      setCompleteDialog(null);
       window.dispatchEvent(new CustomEvent("worklog:task-monitor-stop", { detail: { source: "task:" + taskId } }));
       toast.success(result.message);
       router.refresh();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not complete task. Please try again.");
+      const message = error instanceof Error ? error.message : "Could not complete task. Please try again.";
+      setCompletionError(message); toast.error(message);
     } finally {
       lifecycleSavingRef.current = false;
       setSavingCompletion(false);
     }
   }
 
-  async function handleAutoStopNoteSave(note: string) {
-    if (!activeAutoStopPrompt) return;
-
-    const currentTask =
-      tasks.find((task) => task.id === activeAutoStopPrompt.taskId) ??
-      activeAutoStopTask;
-    const seed = currentTask
-      ? getTaskDaySeed(currentTask, activeAutoStopPrompt.reportDate)
-      : null;
-    const snapshot = timerSnapshotsRef.current[activeAutoStopPrompt.taskId];
-    const nextStatus = snapshot?.status ?? seed?.status ?? "in_progress";
-    const nextTrackedMinutes = Math.max(
-      0,
-      Number(
-        snapshot?.trackedMinutes ??
-          activeAutoStopPrompt.trackedMinutes ??
-          seed?.trackedMinutes ??
-          0,
-      ),
-    );
-    const nextActualStart =
-      snapshot?.actualStart ||
-      activeAutoStopPrompt.actualStart ||
-      (seed?.actualStart ? String(seed.actualStart) : "");
-    const nextActualEnd =
-      snapshot?.actualEnd ||
-      activeAutoStopPrompt.actualEnd ||
-      (seed?.actualEnd ? String(seed.actualEnd) : "");
-
-    setSavingAutoStopNote(true);
-    const response = await fetch("/api/dashboard/report", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        reportDate: activeAutoStopPrompt.reportDate,
-        updates: [
-          {
-            dailyTaskId: activeAutoStopPrompt.taskId,
-            status: nextStatus,
-            note,
-            completionPercent: nextStatus === "done" ? 100 : 0,
-            trackedMinutes: nextTrackedMinutes,
-            actualStart: nextActualStart,
-            actualEnd: nextActualEnd,
-            difficultyLevel: "",
-          },
-        ],
-      }),
-    });
-    const result = parseResponse(await response.text());
-    setSavingAutoStopNote(false);
-
-    if (!response.ok) {
-      toast.error(result.message ?? "Could not save auto-stop note.");
-      return;
-    }
-
-    setTasks((current) =>
-      current.map((task) =>
-        task.id === activeAutoStopPrompt.taskId
-          ? upsertTaskDayUpdate(task, activeAutoStopPrompt.reportDate, {
-              status: nextStatus,
-              trackedMinutes: nextTrackedMinutes,
-              actualStart: nextActualStart || null,
-              actualEnd: nextActualEnd || null,
-              note,
-            })
-          : task,
-      ),
-    );
-    toast.success("Auto-stop note saved.");
-    dismissAutoStopPrompt(
-      activeAutoStopPrompt.taskId,
-      activeAutoStopPrompt.reportDate,
-    );
-  }
-
   return (
     <>
+      {visibleTasks.filter(task=>task.userId===currentUserId).map(task=><TaskTimerObserver key={task.id} taskId={task.id} reportDate={toDateOnly()} onSnapshot={handleSnapshotChange}/>)}
       <Tooltip.Provider delayDuration={350}>
         <section
           className="dashboard-accent accent-indigo flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[1.15rem] border border-[var(--panel-border)] bg-[var(--panel)] shadow-[var(--shadow)]"
@@ -1166,7 +1058,7 @@ export function DashboardWorkPlanSection({
                             <button
                               className="inline-flex h-7 items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50/80 px-2 text-[0.6rem] font-semibold text-indigo-700 transition hover:border-indigo-300 hover:bg-indigo-100/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/35 disabled:cursor-wait disabled:opacity-60 dark:border-indigo-400/25 dark:bg-indigo-400/10 dark:text-indigo-200 dark:hover:bg-indigo-400/15"
                               disabled={Boolean(reopeningTaskId)}
-                              onClick={() => setReopenDialogTaskId(task.id)}
+                              onClick={() => openTaskLifecycleDialog(task.id, "reopen")}
                               title="Reopen this completed task"
                               type="button"
                             >
@@ -1202,7 +1094,7 @@ export function DashboardWorkPlanSection({
                           workflowBusy={completeTaskId === task.id || reopeningTaskId === task.id}
                           attendanceRunning={attendanceRunning}
                           canEdit={canEdit}
-                          onDoneClick={setCompleteTaskId}
+                          onDoneClick={taskId => openTaskLifecycleDialog(taskId, "complete")}
                           onSnapshotChange={handleSnapshotChange}
                           task={task}
                         />
@@ -1240,11 +1132,12 @@ export function DashboardWorkPlanSection({
       />
       <TaskCompleteModal
         onOpenChange={(open) => {
-          if (!open) setCompleteTaskId(null);
+          if (!open) setCompleteDialog(null);
         }}
         onSave={handleCompleteSave}
         open={Boolean(completeTaskId)}
         saving={savingCompletion}
+        error={completionError}
         taskTitle={completingTask?.taskTitle ?? ""}
       />
       <TaskReopenModal
@@ -1255,40 +1148,18 @@ export function DashboardWorkPlanSection({
         }
         completionNote={reopenDialogSeed?.note}
         onOpenChange={(open) => {
-          if (!open && !reopeningTaskId) setReopenDialogTaskId(null);
+          if (!open && !reopeningTaskId) setReopenDialog(null);
         }}
         onSave={(reason) =>
-          reopenDialogTask
-            ? reopenCompletedTask(reopenDialogTask, reason)
+          reopenDialog
+            ? reopenCompletedTask(reopenDialog, reason)
             : Promise.resolve()
         }
         open={Boolean(reopenDialogTask)}
         saving={Boolean(reopeningTaskId)}
+        error={reopenError}
         taskTitle={reopenDialogTask?.taskTitle ?? ""}
         trackedMinutes={reopenDialogSeed?.trackedMinutes ?? 0}
-      />
-      <TaskAutoStopNoteModal
-        initialNote={
-          activeAutoStopTask && activeAutoStopPrompt
-            ? getTaskDaySeed(
-                activeAutoStopTask,
-                activeAutoStopPrompt.reportDate,
-              ).note ?? ""
-            : ""
-        }
-        onOpenChange={(open) => {
-          if (!open && activeAutoStopPrompt) {
-            dismissAutoStopPrompt(
-              activeAutoStopPrompt.taskId,
-              activeAutoStopPrompt.reportDate,
-            );
-          }
-        }}
-        onSave={handleAutoStopNoteSave}
-        open={Boolean(activeAutoStopPrompt)}
-        saving={savingAutoStopNote}
-        stoppedAt={activeAutoStopPrompt?.actualEnd ?? ""}
-        taskTitle={activeAutoStopTask?.taskTitle ?? "Stopped task"}
       />
     </>
   );

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => {
   const records = { findFirst: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), create: vi.fn(), update: vi.fn() };
-  const tx = { $queryRaw: vi.fn(), user: { findUnique: vi.fn() }, attendanceRecord: records,
+  const tx = { dailyTask:{findMany:vi.fn().mockResolvedValue([])}, $queryRaw: vi.fn(), user: { findUnique: vi.fn() }, attendanceRecord: records,
     attendanceWorkSession: { findMany: vi.fn(), create: vi.fn(), update: vi.fn() }, attendanceBreakSession: { create: vi.fn(), update: vi.fn() } };
   return { auth: vi.fn(), tx, db: { $transaction: vi.fn(), attendanceRecord: records } };
 });
@@ -75,6 +75,20 @@ describe("attendance API", () => {
   });
   it("returns JSON 401 without redirecting expired sessions", async () => { mocks.auth.mockResolvedValue({ user: null }); const response = await postAttendance(request("check_in")); expect(response.status).toBe(401); expect(await response.json()).toMatchObject({ success: false }); expect(mocks.db.$transaction).not.toHaveBeenCalled(); });
   it("rejects cross-origin writes", async () => { const input = request("check_in"); input.headers.set("origin", "https://untrusted.example"); expect((await postAttendance(input)).status).toBe(403); expect(rows).toHaveLength(0); });
+  it("allows a direct same-origin LAN attendance write when Next exposes an internal localhost URL", async () => {
+    const input = request("check_in");
+    input.headers.set("origin", "http://192.168.68.95:3001");
+    input.headers.set("host", "192.168.68.95:3001");
+    expect((await postAttendance(input)).status).toBe(200);
+    expect(rows[0].workSessions).toHaveLength(1);
+  });
+  it("rejects an external origin even when the request Host is a LAN address", async () => {
+    const input = request("check_in");
+    input.headers.set("origin", "https://untrusted.example");
+    input.headers.set("host", "192.168.68.95:3001");
+    expect((await postAttendance(input)).status).toBe(403);
+    expect(rows).toHaveLength(0);
+  });
   it("rechecks active account under the employee lock", async () => { mocks.tx.user.findUnique.mockResolvedValue({ ...actor, isActive: false }); expect((await postAttendance(request("check_in"))).status).toBe(403); expect(mocks.tx.attendanceRecord.create).not.toHaveBeenCalled(); });
   it.each(["super_admin", "moderator", "admin", "team_head", "employee"])("allows the %s role to record their own attendance", async role => { mocks.auth.mockResolvedValue({ user: { ...actor, role } }); expect((await postAttendance(request("check_in"))).status).toBe(200); expect(rows[0].userId).toBe(userId); });
   it("uses server seconds, ignores near-current client clock and does not accept client status or owner", async () => {

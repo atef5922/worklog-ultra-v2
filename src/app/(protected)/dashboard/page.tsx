@@ -2,7 +2,6 @@ import { serializeAttendanceRecord } from "@/lib/attendance-record";
 import { CalendarCheck2, Check, CheckCircle2, ClipboardList, Clock3, PlayCircle, TimerReset } from "lucide-react";
 import { PanelHeader } from "@/components/dashboard/panel-header";
 import { DashboardKpiCards, type DashboardKpiCard } from "@/components/dashboard/dashboard-kpi-cards";
-import { DashboardTaskNotifier } from "@/components/dashboard/dashboard-task-notifier";
 import { DashboardTimeSummary } from "@/components/dashboard/dashboard-time-summary";
 import { DashboardWorkdayTimer } from "@/components/dashboard/dashboard-workday-timer";
 import { DashboardWorkPlanSection } from "@/components/dashboard/dashboard-work-plan-table";
@@ -13,8 +12,6 @@ import {
   countDashboardTaskStats,
   filterTodaysWorkPlanTasks,
   getTaskDaySeed,
-  getTaskStatusForDashboard,
-  getTaskUpdateForDate,
 } from "@/lib/dashboard-work-plan-filter";
 import { taskPriorityRank } from "@/lib/task-priority";
 import { canUserEditReportDate, getAssignableUsers, getCurrentUserAttendanceSnapshot, getDashboardData, getDepartments, getPlanSuggestions, getPlanWithReports } from "@/lib/worklog";
@@ -296,20 +293,6 @@ export default async function DashboardPage() {
           screen above an empty work plan. Status comes from today's report row
           too, so a task left running last week no longer reports itself as
           running this morning. */}
-      <DashboardTaskNotifier
-        tasks={activeTasks.map((task) => {
-          const todaysUpdate = getTaskUpdateForDate(task);
-
-          return {
-            id: task.id,
-            title: task.taskTitle,
-            status: getTaskStatusForDashboard(task) as "done" | "in_progress" | "pending",
-            trackedMinutes: todaysUpdate?.trackedMinutes ?? 0,
-            actualEnd: todaysUpdate?.actualEnd?.toISOString() ?? null,
-            taskDescription: task.taskDescription,
-          };
-        })}
-      />
       <section className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4" data-page-section>
         <div className="flex min-w-0 items-center gap-2.5 sm:flex-1">
           {/* Colour emoji rather than a line icon: it reads instantly at this

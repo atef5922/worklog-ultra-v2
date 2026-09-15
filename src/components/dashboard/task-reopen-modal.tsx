@@ -22,6 +22,7 @@ export function TaskReopenModal({
   onSave,
   open,
   saving = false,
+  error,
   taskTitle,
   trackedMinutes,
 }: {
@@ -31,6 +32,7 @@ export function TaskReopenModal({
   onSave: (reason: string) => Promise<void>;
   open: boolean;
   saving?: boolean;
+  error?: string | null;
   taskTitle: string;
   trackedMinutes: number;
 }) {
@@ -47,7 +49,7 @@ export function TaskReopenModal({
     <Dialog.Root onOpenChange={(next) => { if (!saving) onOpenChange(next); }} open={open}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 w-[min(500px,92vw)] -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.28)] outline-none">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[min(500px,92vw)] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[24px] border border-slate-200 bg-white shadow-[0_28px_80px_rgba(15,23,42,0.28)] outline-none">
           <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
@@ -80,6 +82,7 @@ export function TaskReopenModal({
           </div>
 
           <div className="space-y-5 px-6 py-5">
+            {error && <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"><p>{error}</p><p className="mt-1 text-xs">Your reason is still here. This dialog will not overwrite newer task changes.</p></div>}
             <div className="grid grid-cols-2 divide-x divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
               <div className="px-4 py-3">
                 <p className="text-[0.65rem] font-bold uppercase tracking-[0.1em] text-slate-500">

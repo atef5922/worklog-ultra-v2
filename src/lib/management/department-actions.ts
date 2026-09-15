@@ -3,7 +3,7 @@ import {NextResponse} from 'next/server';
 import {z} from 'zod';
 import {db} from '@/lib/db';
 import {can,departmentScope,isSuperAdmin} from '@/lib/auth/policy';
-import {authenticate,checkOrigin,freshActor,audit,fail,AccessError} from './server';
+import {authenticate,checkOrigin,freshActor,audit,fail,AccessError,lockTransaction} from './server';
 export async function createDepartment(request:Request){try{
  const actor=await authenticate('departments.manage');checkOrigin(request);
  const input=z.object({name:z.string().trim().min(2).max(100)}).safeParse(await request.json().catch(()=>null));
@@ -11,7 +11,7 @@ export async function createDepartment(request:Request){try{
  const department=await db.$transaction(async tx=>{
   const current=await freshActor(tx,actor.id);
   if(!can(current,'departments.manage')||!(isSuperAdmin(current)||current.accessScopes.some(s=>s.scopeType==='all_company')))throw new AccessError('Company-wide department management is required to create a department.');
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext('department-names'))`;
+  await lockTransaction(tx,'department-names');
   if(await tx.department.findFirst({where:{name:{equals:input.data.name,mode:'insensitive'}}}))throw new AccessError('This department already exists.',409);
   const created=await tx.department.create({data:input.data});await audit(tx,current.id,null,'department.created',null,created);return created;
  },{isolationLevel:'Serializable'});

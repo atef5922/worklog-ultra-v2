@@ -1,17 +1,236 @@
+import {personalOrScopedTasks, type AccessActor} from '@/lib/auth/policy';
 import {db} from '@/lib/db';
+import {taskActivityDisplay} from '@/lib/management/task-activity-display';
 import {readChecklist} from '@/lib/management/task-insights';
-import {employeeScope,type AccessActor} from '@/lib/auth/policy';
-import {notFound} from 'next/navigation';
 import {getReadableTaskDescription} from '@/lib/report-summary';
-import {formatDateTimeInDhaka,formatMinutes} from '@/lib/utils';
-export async function TaskRecord({actor,taskId}:{actor:AccessActor;taskId:string}){
- const task=await db.dailyTask.findFirst({where:{id:taskId,OR:[{userId:actor.id},{user:employeeScope(actor,'tasks.view')},{user:employeeScope(actor,'history.view')}]},include:{user:{select:{name:true}},department:{select:{name:true}},assigner:{select:{name:true}},updates:{orderBy:{reportDate:'asc'}},activityEvents:{include:{actor:{select:{name:true}}},orderBy:{createdAt:'asc'}},timelineEntries:{orderBy:{createdAt:'asc'}}}});
- if(!task)notFound();
- const fmt=(d:Date|null)=>d?formatDateTimeInDhaka(d):'—';
- const card='rounded-xl border border-[var(--panel-border)] bg-[var(--panel)] p-5';
- return <div className="space-y-4"><section className={card}><p className="text-xs font-medium uppercase tracking-wide text-indigo-500">Read-only task record</p><h1 className="mt-2 text-2xl font-semibold">{task.taskTitle}</h1><p className="mt-3 whitespace-pre-wrap text-sm text-[var(--muted-foreground)]">{getReadableTaskDescription(task.taskDescription)}</p><dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">{[['Owner',task.user.name],['Department',task.department.name],['Assigned by',task.assigner?.name??'Self'],['Project',task.projectName??'Not set'],['Client',task.clientName??'Not set'],['Deadline',fmt(task.dueAt)],['Estimated time',task.estimatedMinutes?formatMinutes(task.estimatedMinutes):'Not set'],['Priority',task.priority],['Planned date',task.planDate.toISOString().slice(0,10)],['Created',fmt(task.createdAt)],['Current status',task.updates.at(-1)?.status??'pending'],['Tracked time',formatMinutes(task.updates.reduce((n,u)=>n+u.trackedMinutes,0))],['Task ID',task.id]].map(([label,value])=><div key={label}><dt className="text-xs text-[var(--muted-foreground)]">{label}</dt><dd className="mt-1 break-all">{value}</dd></div>)}</dl></section>
- <section className={card}><h2 className="font-semibold">Checklist / subtasks</h2>{readChecklist(task.checklist).length?readChecklist(task.checklist).map(item=><p key={item.id} className="mt-2 text-sm">{item.done?'?':'?'} {item.title}</p>):<p className="mt-2 text-sm text-[var(--muted-foreground)]">No checklist added.</p>}</section>
- <section className={card}><h2 className="font-semibold">Daily work records</h2><div className="mt-3 overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{['Date','Status','Start','End / pause','Time','Note'].map(h=><th className="p-2" key={h}>{h}</th>)}</tr></thead><tbody>{task.updates.map(u=><tr className="border-t border-[var(--panel-border)]" key={u.id}><td className="p-2">{u.reportDate.toISOString().slice(0,10)}</td><td className="p-2">{u.status==='done'?'Completed (100%)':u.status}</td><td className="p-2">{fmt(u.actualStart)}</td><td className="p-2">{fmt(u.actualEnd)}</td><td className="p-2">{formatMinutes(u.trackedMinutes)}</td><td className="min-w-48 whitespace-pre-wrap p-2">{u.note??'—'}</td></tr>)}</tbody></table></div></section>
- <section className={card}><h2 className="font-semibold">Completion and reopen history</h2>{task.activityEvents.map(e=><article key={e.id} className="mt-3 border-l-2 border-indigo-400 py-1 pl-4"><p className="text-sm font-semibold">{e.eventType==='completed'?'Completed':'Reopened'} · Cycle {e.cycle}</p><p className="mt-1 text-xs text-[var(--muted-foreground)]">{fmt(e.createdAt)} · {e.actor?.name??'System'} · {formatMinutes(e.trackedMinutes)}</p><p className="mt-2 whitespace-pre-wrap text-sm">{e.reason??e.note??'No additional note'}</p></article>)}{!task.activityEvents.length&&<p className="mt-3 text-sm text-[var(--muted-foreground)]">No recorded completion events. Older task evidence remains in daily records above.</p>}</section>
- <section className={card}><h2 className="font-semibold">Activity timeline</h2><p className="mt-1 text-xs text-[var(--muted-foreground)]">Detailed events are recorded from the management upgrade onwards; older events are shown only where evidence exists.</p>{task.timelineEntries.map(e=><details key={e.id} className="mt-3 border-t border-[var(--panel-border)] pt-3"><summary className="cursor-pointer text-sm">{e.eventType.replaceAll('_',' ')} · {fmt(e.createdAt)}</summary><p className="mt-2 whitespace-pre-wrap text-sm">{e.note}</p>{e.snapshot&&<pre className="mt-2 overflow-auto rounded bg-[var(--panel-alt)] p-3 text-xs">{JSON.stringify(e.snapshot,null,2)}</pre>}</details>)}</section></div>;
+import {projectTaskTimers} from '@/lib/task-timer-projection';
+import {formatDateTimeInDhaka, formatMinutes} from '@/lib/utils';
+import {
+  Activity,
+  CheckCircle2,
+  ChevronDown,
+  Clock3,
+  PencilLine,
+  RotateCcw,
+  StickyNote,
+} from 'lucide-react';
+import {notFound} from 'next/navigation';
+import styles from './task-activity-log.module.css';
+
+export async function TaskRecord({actor, taskId}: {actor: AccessActor; taskId: string}) {
+  const stored = await db.dailyTask.findFirst({
+    where: {
+      id: taskId,
+      ...personalOrScopedTasks(actor, ['tasks.view', 'history.view']),
+    },
+    include: {
+      timerStates: true,
+      user: {select: {name: true}},
+      department: {select: {name: true}},
+      assigner: {select: {name: true}},
+      updates: {orderBy: {reportDate: 'asc'}},
+      activityEvents: {
+        include: {actor: {select: {name: true}}},
+        orderBy: {createdAt: 'asc'},
+      },
+      timelineEntries: {orderBy: {createdAt: 'asc'}},
+    },
+  });
+
+  if (!stored) notFound();
+
+  const userIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const activityActorIds = [
+    ...new Set(stored.timelineEntries.map((entry) => entry.actorId).filter((id) => userIdPattern.test(id))),
+  ];
+  const activityActors = activityActorIds.length
+    ? await db.user.findMany({
+        where: {id: {in: activityActorIds}},
+        select: {id: true, name: true},
+      })
+    : [];
+  const activityActorNames = new Map(activityActors.map((user) => [user.id, user.name]));
+  const task = projectTaskTimers(stored);
+  const fmt = (date: Date | null) => (date ? formatDateTimeInDhaka(date) : 'Not set');
+  const card = styles.card;
+  const checklist = readChecklist(task.checklist);
+  const activityEntries = [...task.timelineEntries].reverse();
+  const activityIcons = {
+    timer: Clock3,
+    change: PencilLine,
+    complete: CheckCircle2,
+    reopen: RotateCcw,
+    note: StickyNote,
+  };
+
+  const renderTimeline = (entries: typeof activityEntries) =>
+    entries.map((entry) => {
+      const display = taskActivityDisplay(entry.eventType, entry.snapshot);
+      const Icon = activityIcons[display.tone];
+
+      return (
+        <article className={styles.event} data-task-activity-event key={entry.id}>
+          <span className={styles.icon}>
+            <Icon aria-hidden="true" size={15} />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <h3 className="text-sm font-semibold">{display.title}</h3>
+              <time
+                className="text-xs text-[var(--muted-foreground)]"
+                dateTime={entry.createdAt.toISOString()}
+              >
+                {fmt(entry.createdAt)}
+              </time>
+            </div>
+            <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+              Recorded by {activityActorNames.get(entry.actorId) ?? 'System'}
+            </p>
+            <p className="mt-2 text-sm">{entry.note || display.description}</p>
+            {display.facts.length ? (
+              <dl className={styles.facts}>
+                {display.facts.map((fact) => (
+                  <div className={styles.fact} key={fact.label + fact.value}>
+                    <dt className="inline font-medium">{fact.label}: </dt>
+                    <dd className="inline text-[var(--muted-foreground)]">{fact.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
+          </div>
+        </article>
+      );
+    });
+
+  return (
+    <div className={styles.page} data-fit-viewport>
+      <section className={card + ' ' + styles.summaryCard}>
+        <p className="text-xs font-medium uppercase tracking-wide text-indigo-500">Read-only task record</p>
+        <h1 className="mt-2 text-2xl font-semibold">{task.taskTitle}</h1>
+        <p className="mt-3 whitespace-pre-wrap text-sm text-[var(--muted-foreground)]">
+          {getReadableTaskDescription(task.taskDescription)}
+        </p>
+        <dl className={styles.metadataGrid}>
+          {[
+            ['Owner', task.user.name],
+            ['Department', task.department.name],
+            ['Assigned by', task.assigner?.name ?? 'Self'],
+            ['Project', task.projectName ?? 'Not set'],
+            ['Client', task.clientName ?? 'Not set'],
+            ['Deadline', fmt(task.dueAt)],
+            ['Estimated time', task.estimatedMinutes ? formatMinutes(task.estimatedMinutes) : 'Not set'],
+            ['Priority', task.priority],
+            ['Planned date', task.planDate.toISOString().slice(0, 10)],
+            ['Created', fmt(task.createdAt)],
+            ['Current status', task.updates.at(-1)?.status ?? 'pending'],
+            ['Tracked time', formatMinutes(task.updates.reduce((sum, update) => sum + update.trackedMinutes, 0))],
+            ['Task ID', task.id],
+          ].map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-xs text-[var(--muted-foreground)]">{label}</dt>
+              <dd className="mt-1 break-all">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      <section className={card + ' ' + styles.checklistCard}>
+        <h2 className="font-semibold">Checklist / subtasks</h2>
+        <div className={styles.cardBodyScroll}>
+        {checklist.length ? (
+          checklist.map((item) => (
+            <p className="mt-2 text-sm" key={item.id}>
+              <span className="mr-2 text-[var(--muted-foreground)]">{item.done ? 'Completed' : 'Open'}</span>
+              {item.title}
+            </p>
+          ))
+        ) : (
+          <p className="mt-2 text-sm text-[var(--muted-foreground)]">No checklist added.</p>
+        )}
+        </div>
+      </section>
+
+      <section className={card + ' ' + styles.recordsCard}>
+        <h2 className="font-semibold">Daily work records</h2>
+        <div className={styles.tableScroll}>
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr>
+                {['Date', 'Status', 'Start', 'End / pause', 'Time', 'Note'].map((heading) => (
+                  <th className="p-2" key={heading}>{heading}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {task.updates.map((update) => (
+                <tr className="border-t border-[var(--panel-border)]" key={update.id}>
+                  <td className="p-2">{update.reportDate.toISOString().slice(0, 10)}</td>
+                  <td className="p-2">{update.status === 'done' ? 'Completed (100%)' : update.status}</td>
+                  <td className="p-2">{fmt(update.actualStart)}</td>
+                  <td className="p-2">{fmt(update.actualEnd)}</td>
+                  <td className="p-2">{formatMinutes(update.trackedMinutes)}</td>
+                  <td className="min-w-48 whitespace-pre-wrap p-2">{update.note ?? 'No note'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className={card + ' ' + styles.historyCard}>
+        <h2 className="font-semibold">Completion and reopen history</h2>
+        <div className={styles.historyList}>
+        {task.activityEvents.map((event) => (
+          <article className="mt-3 border-l-2 border-indigo-400 py-1 pl-4" key={event.id}>
+            <p className="text-sm font-semibold">
+              {event.eventType === 'completed' ? 'Completed' : 'Reopened'} / Cycle {event.cycle}
+            </p>
+            <p className="mt-1 text-xs text-[var(--muted-foreground)]">
+              {fmt(event.createdAt)} / {event.actor?.name ?? 'System'} / {formatMinutes(event.trackedMinutes)}
+            </p>
+            <p className="mt-2 whitespace-pre-wrap text-sm">
+              {event.reason ?? event.note ?? 'No additional note'}
+            </p>
+          </article>
+        ))}
+        {!task.activityEvents.length ? (
+          <p className="mt-3 text-sm text-[var(--muted-foreground)]">
+            No recorded completion events. Older task evidence remains in daily records above.
+          </p>
+        ) : null}
+        </div>
+      </section>
+
+      <details className={card + ' ' + styles.activityLog} data-task-activity-log>
+        <summary>
+          <span className={styles.icon}><Activity aria-hidden="true" size={16} /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold">Task activity log</span>
+            <span className="mt-0.5 block text-xs text-[var(--muted-foreground)]">
+              {activityEntries.length
+                ? activityEntries.length + ' recorded event' + (activityEntries.length === 1 ? '' : 's') + ' / Latest first'
+                : 'No activity recorded yet'}
+            </span>
+          </span>
+          <ChevronDown aria-hidden="true" className={styles.chevron} size={18} />
+        </summary>
+        {activityEntries.length ? (
+          <div className={styles.eventList}>
+            <p className="pb-1 pt-2 text-xs text-[var(--muted-foreground)]">
+              Readable work history is shown here. Internal IDs and system versions remain securely stored but hidden.
+            </p>
+            {renderTimeline(activityEntries.slice(0, 5))}
+            {activityEntries.length > 5 ? (
+              <details className="border-t border-[var(--panel-border)] pt-3">
+                <summary className="cursor-pointer text-sm font-medium text-indigo-600">
+                  View {activityEntries.length - 5} older event{activityEntries.length - 5 === 1 ? '' : 's'}
+                </summary>
+                <div className="mt-2">{renderTimeline(activityEntries.slice(5))}</div>
+              </details>
+            ) : null}
+          </div>
+        ) : null}
+      </details>
+    </div>
+  );
 }

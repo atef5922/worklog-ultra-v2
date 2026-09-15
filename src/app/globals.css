@@ -8,11 +8,8 @@
      still uses 44px touch targets, which a 40px band cannot hold. The desktop
      value is set alongside the fluid scale below. */
   --topbar-height: 3.125rem;
-  /*
-   * The expanded rail accommodates management labels without truncating them.
-   * The collapsed rail retains its original width and stable icon lane.
-   */
-  --sidebar-width-expanded: 15.5rem;
+  /* Compact expanded rail; long management labels still fit without clipping. */
+  --sidebar-width-expanded: 14rem;
   --sidebar-width: var(--sidebar-width-expanded);
   --sidebar-width-collapsed: 4.1667rem;
   --sidebar-visual-width: var(--sidebar-width);

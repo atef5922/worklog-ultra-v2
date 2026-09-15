@@ -1,13 +1,69 @@
 import "server-only";
+import {pauseUserTaskTimers} from "@/lib/task-timer-service";
 import { assertNoOtherAttendanceOverlap } from "@/lib/attendance-overlap";
 import { Prisma } from "@prisma/client";
 import { apiError, apiSuccess } from "@/lib/api";
 import { getServerAuthContext } from "@/lib/auth/server";
 import { db } from "@/lib/db";
-import { AccessError, checkOrigin, freshActor } from "@/lib/management/server";
+import { AccessError, audit, checkDashboardActionOrigin, freshActor } from "@/lib/management/server";
 import { toDateOnly } from "@/lib/utils";
 import { attendanceActionSchema, attendanceClientTimeError, attendanceTransitionError } from "@/lib/attendance-action-validation";
-import { attendanceInclude, attendanceRevision, serializeAttendanceRecord, syncAttendanceSummary } from "@/lib/attendance-record";
+import { attendanceInclude, attendanceRevision, serializeAttendanceRecord, syncAttendanceSummary, type AttendanceRecordWithSessions } from "@/lib/attendance-record";
+
+const AUTO_RECONCILIATION_REASON = "Automatically closed an earlier open attendance day at the next recorded office entry boundary.";
+
+function firstWorkStart(record: AttendanceRecordWithSessions) {
+  return record.workSessions[0]?.startedAt ?? null;
+}
+
+/**
+ * Legacy/concurrent data can contain open sessions on more than one attendance day.
+ * While the employee row is locked, retain the newest requested day and close each
+ * older day exactly where the following day's first office entry begins. This
+ * removes overlap without inventing a 7 PM or midnight checkout.
+ */
+async function reconcileEarlierOpenDays(
+  tx: Prisma.TransactionClient,
+  actorId: string,
+  records: AttendanceRecordWithSessions[],
+  requestedRecordId: string,
+  now: Date,
+) {
+  if (records.length <= 1) return 0;
+  const ordered = [...records].sort((left, right) =>
+    left.attendanceDate.getTime() - right.attendanceDate.getTime() ||
+    (firstWorkStart(left)?.getTime() ?? Infinity) - (firstWorkStart(right)?.getTime() ?? Infinity) ||
+    left.id.localeCompare(right.id));
+  if (ordered.at(-1)?.id !== requestedRecordId) {
+    throw new AccessError("A newer attendance day is already open. Refresh before taking another action.", 409);
+  }
+
+  for (let index = 0; index < ordered.length - 1; index++) {
+    const record = ordered[index], boundary = firstWorkStart(ordered[index + 1]);
+    const openWork = record.workSessions.filter(session => !session.endedAt);
+    const openBreak = record.breakSessions.filter(session => !session.endedAt);
+    if (!boundary || boundary > now || openWork.length !== 1 || openBreak.length > 1 ||
+        openWork[0].startedAt > boundary) {
+      throw new AccessError("Attendance has conflicting sessions. Ask an authorized reviewer to correct it.", 409);
+    }
+    const transitionError = attendanceTransitionError("check_out", record, boundary);
+    if (transitionError) throw new AccessError(transitionError, 409);
+
+    if (openBreak[0]) {
+      await tx.attendanceBreakSession.update({
+        where: { id: openBreak[0].id },
+        data: { endedAt: boundary, endReason: "reconciled_next_entry" },
+      });
+    }
+    await tx.attendanceWorkSession.update({
+      where: { id: openWork[0].id },
+      data: { endedAt: boundary, endReason: "reconciled_next_entry" },
+    });
+    const updated = await syncAttendanceSummary(tx, record.id, now);
+    await audit(tx, actorId, actorId, "attendance.auto_reconciled", record, updated, AUTO_RECONCILIATION_REASON);
+  }
+  return ordered.length - 1;
+}
 
 function failure(error: unknown) {
   if (error instanceof AccessError) return apiError(error.message, error.status);
@@ -41,7 +97,7 @@ export async function getAttendance() {
 
 export async function postAttendance(request: Request) {
   try {
-    checkOrigin(request);
+    checkDashboardActionOrigin(request);
     const { user } = await getServerAuthContext();
     if (!user) return apiError("Authentication required.", 401);
     const body = await request.json().catch(() => null);
@@ -60,9 +116,9 @@ export async function postAttendance(request: Request) {
       await tx.$queryRaw`SELECT id::text FROM users WHERE id=${user.id}::uuid FOR UPDATE`;
       await freshActor(tx, user.id);
       const openRecords = await tx.attendanceRecord.findMany({
-        where: { userId: user.id, workSessions: { some: { endedAt: null } } }, include: attendanceInclude,
+        where: { userId: user.id, workSessions: { some: { endedAt: null } } },
+        orderBy: [{ attendanceDate: "asc" }, { id: "asc" }], include: attendanceInclude,
       });
-      if (openRecords.length > 1) throw new AccessError("Attendance has multiple open days. Ask an authorized reviewer to correct it.", 409);
       let record = await tx.attendanceRecord.findUnique({
         where: { userId_attendanceDate: { userId: user.id, attendanceDate: new Date(input.attendanceDate) } },
         include: attendanceInclude,
@@ -76,7 +132,11 @@ export async function postAttendance(request: Request) {
       const timeError = attendanceClientTimeError(input.occurredAt, now);
       if (timeError) throw new AccessError(timeError, 400);
       if (input.action === "check_in" && input.attendanceDate !== today) throw new AccessError("Check In must be recorded for today.", 400);
-      if (openRecords[0] && openRecords[0].id !== record?.id) {
+      if (openRecords.length > 1 && record) {
+        await reconcileEarlierOpenDays(tx, user.id, openRecords, record.id, now);
+      }
+      const retainedOpenRecord = openRecords.at(-1);
+      if (retainedOpenRecord && retainedOpenRecord.id !== record?.id) {
         throw new AccessError("Another attendance day is still checked in. Refresh and check Out from that session first.", 409);
       }
       if (input.attendanceDate !== today && !record?.workSessions.some(s => !s.endedAt)) {
@@ -118,9 +178,10 @@ export async function postAttendance(request: Request) {
           message = "Checked out successfully. You can check in again.";
           break;
       }
+      if (input.action === "break_start" || input.action === "check_out") await pauseUserTaskTimers(tx, user.id, now, input.action);
       const saved = await syncAttendanceSummary(tx, record.id, now);
       return { snapshot: serializeAttendanceRecord(saved, now), message, serverNow: now.toISOString() };
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, timeout: 20_000 });
     return apiSuccess({ ...result, userId: user.id, record: result.snapshot });
   } catch (error) { return failure(error); }
 }

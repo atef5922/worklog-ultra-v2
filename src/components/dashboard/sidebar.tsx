@@ -3,13 +3,12 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { BellRing, BriefcaseBusiness, CalendarCheck2, ChevronLeft, ChevronRight, ChevronsUpDown, CheckSquare2, ClipboardList, FileClock, FolderTree, LayoutDashboard, LogOut, Menu, Settings, Shield, Users, X } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { getSidebarLayout } from "@/lib/sidebar-layout";
-import { canOpenManagement, can, isSuperAdmin } from "@/lib/auth/policy";
+import { canOpenManagement, can, canViewAuditLogs, isSuperAdmin } from "@/lib/auth/policy";
 import { cn } from "@/lib/utils";
 import { NOTICES_READ_EVENT } from "@/lib/dashboard-live-events";
 import type { DashboardSidebarUser } from "@/lib/contracts/user";
@@ -54,7 +53,6 @@ function SidebarContent({
   mobile?: boolean;
   onNavigate?: () => void;
 }) {
-  const router = useRouter();
   const [noticeNotifications, setNoticeNotifications] = useState(user.noticeNotifications ?? 0);
   const navigationRegionRef = useRef<HTMLDivElement>(null);
   const [navigationHeight, setNavigationHeight] = useState(0);
@@ -62,7 +60,7 @@ function SidebarContent({
   const visibleItems = navItems.filter((item) => {
     if (item.href === "/management") return canOpenManagement(user);
     if (item.href === "/management/reports") return can(user, "reports.view");
-    if (item.href === "/management/audit") return can(user, "audit_logs.view");
+    if (item.href === "/management/audit") return canViewAuditLogs(user);
     if (item.href === "/admin/access-control") return isSuperAdmin(user);
     if (item.href === "/admin/departments") return can(user, "departments.manage");
     if (item.href === "/dashboard/team") return user.role === "team_head" || isSuperAdmin(user);
@@ -139,13 +137,9 @@ function SidebarContent({
     };
   }, []);
 
-  async function logout() {
+  function prepareLogout() {
     onNavigate?.();
-    const response = await fetch("/api/auth/logout", { method: "POST" });
-    const result = await response.json();
-    toast.success(result.message);
-    router.push("/auth/login");
-    router.refresh();
+    void window.worklogDesktop?.stopTracking({ source: "attendance" }).catch(() => undefined);
   }
 
   const settingsLink = (
@@ -253,16 +247,17 @@ function SidebarContent({
       </div>
       <div className="sidebar-footer">
         {mobile ? <Dialog.Close asChild>{settingsLink}</Dialog.Close> : settingsLink}
-        <button
-          className={cn(navLinkClass, "w-full text-left font-semibold hover:bg-white/10")}
-          data-sidebar-row
-          onClick={logout}
-          title="Log Out"
-          type="button"
-        >
-          <LogOut className="h-5 w-5 shrink-0" />
-          <span data-sidebar-label>Log Out</span>
-        </button>
+        <form action="/api/auth/logout" method="post" onSubmit={prepareLogout}>
+          <button
+            className={cn(navLinkClass, "w-full text-left font-semibold hover:bg-white/10")}
+            data-sidebar-row
+            title="Log Out"
+            type="submit"
+          >
+            <LogOut className="h-5 w-5 shrink-0" />
+            <span data-sidebar-label>Log Out</span>
+          </button>
+        </form>
       </div>
     </div>
   );

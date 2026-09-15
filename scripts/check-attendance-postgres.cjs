@@ -37,6 +37,7 @@ async function main() {
     const sqlStart = sql.search(/^-- CreateSchema/m);
     if (sqlStart < 0) throw new Error('Prisma did not produce the expected schema SQL.');
     await pool.query(sql.slice(sqlStart));
+    await pool.query(fs.readFileSync(path.join(root,'prisma/migrations/0011_server_task_timers/migration.sql'),'utf8'));
     // These range checks exist in the production SQL migration, beyond the Prisma schema.
     await pool.query('ALTER TABLE attendance_work_sessions ADD CHECK (ended_at IS NULL OR ended_at >= started_at)');
     await pool.query('ALTER TABLE attendance_break_sessions ADD CHECK (ended_at IS NULL OR ended_at >= started_at)');

@@ -1,9 +1,10 @@
 import {describe,it,expect} from 'vitest';
-import {taskProgress,deadlineState,presenceState,taskInPeriod,planningSchema,readChecklist} from './task-insights';
+import {taskProgress,taskTimeUsage,deadlineState,presenceState,taskInPeriod,planningSchema,readChecklist} from './task-insights';
 const now=new Date('2026-09-13T12:00:00Z');
 describe('Management task calculations',()=>{
  it('never invents partial progress for tasks without a checklist',()=>{expect(taskProgress('pending',[])).toBeNull();expect(taskProgress('in_progress',[])).toBeNull();expect(taskProgress('done',[])).toBe(100);});
  it('computes checklist progress but does not change status',()=>{const list=[{id:'a',title:'One',done:true},{id:'b',title:'Two',done:false}];expect(taskProgress('in_progress',list)).toBe(50);expect(taskProgress('done',list)).toBe(100);});
+ it('keeps time usage separate from completion progress',()=>{expect(taskTimeUsage(80,100)).toEqual({trackedMinutes:80,estimatedMinutes:100,usagePercent:80,overMinutes:0});expect(taskTimeUsage(125,100)).toEqual({trackedMinutes:125,estimatedMinutes:100,usagePercent:125,overMinutes:25});expect(taskTimeUsage(80,null)).toEqual({trackedMinutes:80,estimatedMinutes:null,usagePercent:null,overMinutes:0});});
  it('uses strict overdue and a 24-hour urgent window',()=>{expect(deadlineState('pending',new Date(now.getTime()-1),now)).toBe('overdue');expect(deadlineState('pending',now,now)).toBe('urgent');expect(deadlineState('done',new Date(0),now)).toBe('none');expect(deadlineState('pending',null,now)).toBe('none');expect(deadlineState('pending',new Date(now.getTime()+86400001),now)).toBe('upcoming');});
  it('rejects malformed checklist data without manufacturing progress',()=>expect(readChecklist({done:true})).toEqual([]));
  it('rejects duplicate checklist IDs and invalid estimates',()=>expect(planningSchema.safeParse({version:0,projectName:null,clientName:null,dueAt:null,estimatedMinutes:-1,checklist:[]}).success).toBe(false));

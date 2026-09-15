@@ -1,3 +1,4 @@
+import {pauseUserTaskTimers,taskAttendanceRunning} from "@/lib/task-timer-service";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -76,10 +77,11 @@ export async function PUT(request: Request) {
         else await tx.attendanceBreakSession.create({ data: { ...data, attendanceRecordId: record.id } });
       }
       await tx.attendanceRecord.update({ where: { id: record.id }, data: { legacyBreakMinutes: input.legacyBreakMinutes } });
+      if (hasOpen && !await taskAttendanceRunning(tx, record.userId)) await pauseUserTaskTimers(tx, record.userId, now, "attendance_corrected", actor.id);
       const updated = await syncAttendanceSummary(tx, record.id, now);
       await audit(tx, actor.id, record.userId, "attendance.corrected", record, updated, input.reason);
       return updated;
-    }, { isolationLevel: "ReadCommitted" });
+    }, { isolationLevel: "ReadCommitted", timeout: 20_000 });
     return NextResponse.json({
       message: "Attendance corrected; the original values are preserved in the audit log.",
       record: result, revision: attendanceRevision(result),

@@ -4,13 +4,13 @@ import {hashOtp} from '@/lib/auth/otp';
 import {createUserSession} from '@/lib/auth/session';
 import {db} from '@/lib/db';
 import {verifyRegistrationSchema} from '@/lib/validators/auth';
-import {checkOrigin,fail} from '@/lib/management/server';
+import {checkOrigin,fail,lockTransaction} from '@/lib/management/server';
 export async function POST(request:Request){try{
  checkOrigin(request);const parsed=verifyRegistrationSchema.safeParse(await request.json().catch(()=>null));if(!parsed.success)return apiError('Invalid verification request.',400);
  const secret=process.env.AUTH_SIGNUP_OTP_SECRET;if(!secret)return apiError('Account verification is temporarily unavailable.',503);
  const {email,code}=parsed.data;
  const result=await db.$transaction(async tx=>{
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${'signup:'+email}))`;
+  await lockTransaction(tx,'signup:'+email);
   const verification=await tx.signupVerificationCode.findFirst({where:{email,role:'employee',verifiedAt:null},orderBy:{createdAt:'desc'}});
   if(!verification||verification.expiresAt<new Date())return {error:'Verification code expired or unavailable. Request a new code.'};
   if(verification.attempts>=5)return {error:'Too many incorrect attempts. Request a new code.'};

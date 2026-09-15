@@ -3,7 +3,7 @@ import {getServerAuthContext} from '@/lib/auth/server';
 import {assigneeScope} from '@/lib/auth/policy';
 import {db} from '@/lib/db';
 import {planSubmissionSchema} from '@/lib/validators/worklog';
-import {AccessError,checkOrigin,fail,freshActor,audit} from './server';
+import {AccessError,checkOrigin,fail,freshActor,audit,lockTransaction} from './server';
 import {NextResponse} from 'next/server';
 export async function createWorkPlan(request:Request){try{
  checkOrigin(request);const {user}=await getServerAuthContext();if(!user)throw new AccessError('Please sign in.',401);
@@ -15,7 +15,7 @@ export async function createWorkPlan(request:Request){try{
  const tasks=await db.$transaction(async tx=>{
   const actor=await freshActor(tx,user.id),ids=[...new Set(input.tasks.map(t=>t.assigneeId??user.id))].sort();
   // Coordinate both personal and assigned plan batches for the same employee/day.
-  for(const id of ids)await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`plan:${id}:${input.planDate}`}))`;
+  for(const id of ids)await lockTransaction(tx,`plan:${id}:${input.planDate}`);
   const owners=await tx.user.findMany({where:{id:{in:ids},isActive:true,AND:[assigneeScope(actor)]},select:{id:true,departmentId:true}});
   if(owners.length!==ids.length)throw new AccessError('An assignee is inactive or outside your permitted scope.');
   const created=[];

@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { Bell, ChevronDown, ChevronLeft, Clock3, HelpCircle, LogOut, MessageSquareMore, Settings } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MobileSidebar } from "@/components/dashboard/sidebar";
-import { DashboardWorkdayTimer } from "@/components/dashboard/dashboard-workday-timer";
+import { EmployeePresence } from "@/components/management/employee-presence";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { NOTICES_READ_EVENT } from "@/lib/dashboard-live-events";
 import type { DashboardHeaderUser } from "@/lib/contracts/user";
@@ -97,7 +96,6 @@ export function DashboardHeader({
 }: {
   user: DashboardHeaderUser;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
   const [unreadMessages, setUnreadMessages] = useState(user.unreadMessages);
   const [requestNotifications, setRequestNotifications] = useState(user.requestNotifications);
@@ -456,17 +454,13 @@ export function DashboardHeader({
     });
   }
 
-  async function logout() {
+  function prepareLogout() {
+    setMenuOpen(false);
     // Stop monitoring before the session cookie is gone: once it is cleared,
     // the agent's own reconcile() would eventually catch this via a 401 and
     // self-heal, but that can take up to a minute, and account switching
     // must never leave a capture running under a session that just ended.
-    await window.worklogDesktop?.stopTracking({ source: "attendance" });
-    const response = await fetch("/api/auth/logout", { method: "POST" });
-    const result = await response.json();
-    toast.success(result.message);
-    router.push("/auth/login");
-    router.refresh();
+    void window.worklogDesktop?.stopTracking({ source: "attendance" }).catch(() => undefined);
   }
 
   return (
@@ -501,6 +495,7 @@ export function DashboardHeader({
             </div>
           </div>
         </div>
+        <EmployeePresence key={user.sidebarUser.id} />
         <ThemeToggle className="hidden h-10 w-10 shrink-0 rounded-xl border border-[var(--panel-border)] bg-[var(--panel)] p-0 text-[var(--foreground)] shadow-[0_10px_24px_rgba(148,163,184,0.14)] hover:bg-[var(--panel-alt)] lg:inline-flex" />
         <Link
           className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] min-[900px]:h-10 min-[900px]:w-10"
@@ -646,6 +641,7 @@ export function DashboardHeader({
         </div>
         <div className="relative" ref={menuRef}>
           <button
+            aria-label={`Open profile menu for ${user.name}`}
             className="flex h-11 max-w-[15rem] items-center gap-2 rounded-xl px-2 transition hover:bg-[var(--panel-alt)] sm:max-w-none sm:gap-3 sm:px-3 min-[900px]:h-10"
             onClick={() => setMenuOpen((current) => !current)}
             type="button"
@@ -654,7 +650,7 @@ export function DashboardHeader({
               {user.avatarUrl ? <AvatarImage alt={user.name} src={user.avatarUrl} /> : null}
               <AvatarFallback className="text-[0.75rem] font-bold text-white">{profileInitial}</AvatarFallback>
             </Avatar>
-            <div className="min-w-0 text-left">
+            <div className="hidden min-w-0 max-w-[10rem] text-left sm:block xl:max-w-[12rem]">
               <p className="truncate text-sm font-semibold leading-tight text-[var(--foreground)]">{user.name}</p>
               <p className="truncate text-xs leading-tight text-[var(--muted-foreground)]">{user.designation ?? user.roleTitle}</p>
             </div>
@@ -678,14 +674,15 @@ export function DashboardHeader({
                 <Settings className="h-4 w-4" />
                 Settings
               </Link>
-              <button
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50"
-                onClick={logout}
-                type="button"
-              >
-                <LogOut className="h-4 w-4" />
-                Logout
-              </button>
+              <form action="/api/auth/logout" method="post" onSubmit={prepareLogout}>
+                <button
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50"
+                  type="submit"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Logout
+                </button>
+              </form>
             </div>
           ) : null}
         </div>

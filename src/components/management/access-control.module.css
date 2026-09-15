@@ -1,0 +1,312 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.header {
+  align-items: flex-end;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.header h1 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.6rem;
+}
+
+.header p {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  margin-top: 0.15rem;
+}
+
+.searchBar {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 0.75rem;
+  display: flex;
+  gap: 0.55rem;
+  min-height: 2.55rem;
+  padding: 0.35rem 0.65rem;
+}
+
+.searchBar > svg {
+  color: #5273c7;
+  flex: 0 0 auto;
+}
+
+.searchBar input {
+  background: transparent;
+  border: 0;
+  color: var(--foreground);
+  flex: 1;
+  font-size: 0.8rem;
+  min-width: 0;
+  outline: 0;
+}
+
+.searchBar button {
+  align-items: center;
+  border-radius: 999px;
+  color: var(--muted-foreground);
+  display: inline-flex;
+  height: 1.75rem;
+  justify-content: center;
+  width: 1.75rem;
+}
+
+.searchBar button:hover {
+  background: var(--panel-alt);
+  color: var(--foreground);
+}
+
+.searchStatus {
+  color: var(--muted-foreground);
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  padding-left: 0.25rem;
+}
+
+.workspace {
+  display: grid;
+  gap: 0.75rem;
+  min-height: 0;
+}
+
+.userPanel,
+.editorPanel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 0.875rem;
+  min-height: 0;
+}
+
+.userPanel {
+  overflow: auto;
+  padding: 0.45rem;
+  scrollbar-color: var(--scroll-thumb) transparent;
+  scrollbar-width: thin;
+}
+
+.userButton {
+  border: 1px solid transparent;
+  border-radius: 0.65rem;
+  display: block;
+  padding: 0.6rem 0.7rem;
+  text-align: left;
+  transition: background-color 140ms ease, border-color 140ms ease;
+  width: 100%;
+}
+
+.userButton:hover {
+  background: var(--panel-alt);
+}
+
+.userButtonSelected {
+  background: color-mix(in srgb, #4f46e5 10%, var(--panel));
+  border-color: color-mix(in srgb, #4f46e5 38%, var(--panel-border));
+}
+
+.userButton strong {
+  display: block;
+  font-size: 0.8rem;
+  line-height: 1rem;
+}
+
+.userButton span {
+  color: var(--muted-foreground);
+  display: block;
+  font-size: 0.68rem;
+  line-height: 0.9rem;
+  margin-top: 0.12rem;
+}
+
+.listMessage {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.editorPanel {
+  overflow: hidden;
+}
+
+.editorScroll {
+  height: 100%;
+  overflow: auto;
+  padding: 0.9rem;
+  scrollbar-color: var(--scroll-thumb) transparent;
+  scrollbar-width: thin;
+}
+
+.emptyEditor {
+  align-items: center;
+  color: var(--muted-foreground);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  height: 100%;
+  justify-content: center;
+  min-height: 12rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.teamSetup {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 0.75rem;
+  flex: 0 0 auto;
+  position: relative;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.teamSetupOpen {
+  border-color: color-mix(in srgb, var(--primary) 42%, var(--panel-border));
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.1);
+}
+
+.teamSummary {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  gap: 0.55rem;
+  min-height: 2.45rem;
+  padding: 0.45rem 0.75rem;
+  text-align: left;
+  width: 100%;
+}
+
+.teamSummary:hover {
+  background: color-mix(in srgb, var(--primary) 5%, transparent);
+}
+
+.teamSummary strong {
+  font-size: 0.8rem;
+}
+
+.teamSummary span {
+  color: var(--muted-foreground);
+  font-size: 0.68rem;
+  margin-left: auto;
+}
+
+.teamBody {
+  border-top: 1px solid var(--panel-border);
+  max-height: min(42vh, 21rem);
+  overflow: auto;
+  padding: 0.55rem 0.8rem 0.7rem;
+}
+
+.teamBodyHeader {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.teamBodyHeader strong {
+  display: block;
+  font-size: 0.84rem;
+}
+
+.teamClose {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  display: inline-flex;
+  height: 2rem;
+  justify-content: center;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+  width: 2rem;
+}
+
+.teamClose:hover {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #e11d48;
+}
+
+.teamClose:focus-visible,
+.teamSummary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.teamGrid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.teamMembers {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  min-height: 1.5rem;
+}
+
+.teamActions {
+  align-items: center;
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.teamActions button {
+  white-space: nowrap;
+}
+
+@media (min-width: 900px) {
+  .page {
+    flex: 1 1 0%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .workspace {
+    flex: 1 1 0%;
+    grid-template-columns: minmax(15rem, 0.72fr) minmax(0, 1.6fr);
+  }
+
+  .teamGrid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 899px) {
+  .header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .searchStatus {
+    display: none;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .userPanel {
+    max-height: 18rem;
+  }
+
+  .teamActions {
+    grid-template-columns: 1fr;
+  }
+}

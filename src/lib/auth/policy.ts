@@ -28,6 +28,12 @@ export function can(actor: AccessActor, permission: Permission) {
   if (isSuperAdmin(actor)) return true;
   return actor.permissions?.some(p => p.permissionKey === permission && p.isGranted) === true;
 }
+export function canReceiveAuditPermission(role: string) {
+  return ["super_admin", "moderator", "admin"].includes(role);
+}
+export function canViewAuditLogs(actor: AccessActor) {
+  return isSuperAdmin(actor) || (canReceiveAuditPermission(actor.role) && can(actor, "audit_logs.view"));
+}
 // Applied inside every management query, including aggregates and exports.
 export function employeeScope(actor: AccessActor, permission: Permission): Prisma.UserWhereInput {
   if (!can(actor, permission)) return { id: { in: [] } };
@@ -46,8 +52,12 @@ export function employeeScope(actor: AccessActor, permission: Permission): Prism
   }
   return OR.length ? { OR } : { id: { in: [] } };
 }
-export function personalOrScopedTasks(actor: AccessActor, permission: Permission): Prisma.DailyTaskWhereInput {
-  return { OR: [{ userId: actor.id }, { user: employeeScope(actor, permission) }] };
+export function personalOrScopedTasks(actor: AccessActor, permission: Permission | readonly Permission[]): Prisma.DailyTaskWhereInput {
+  const scopes = (Array.isArray(permission) ? permission : [permission]).map(item => employeeScope(actor, item));
+  // Prisma treats an empty object inside an OR branch as a non-match. Return the
+  // unrestricted predicate directly when any requested permission is company-wide.
+  if (scopes.some(scope => Object.keys(scope).length === 0)) return {};
+  return { OR: [{ userId: actor.id }, ...scopes.map(scope => ({ user: scope }))] };
 }
 // Personal workflow endpoints always act on the signed-in employee's own work.
 // Management edits/reopens use their separately audited, scoped endpoints.
@@ -66,7 +76,8 @@ export function ownTeamScope(actor: AccessActor): Prisma.UserWhereInput {
   return { teamId: { in: ids } };
 }
 export function assigneeScope(actor: AccessActor): Prisma.UserWhereInput {
-  return { OR: [{ id: actor.id }, employeeScope(actor, "tasks.assign")] };
+  const scope = employeeScope(actor, "tasks.assign");
+  return Object.keys(scope).length === 0 ? {} : { OR: [{ id: actor.id }, scope] };
 }
 export function canChangeProtectedAccount(actor: AccessActor, target: {id: string; role: string}, nextRole: string, nextActive: boolean, activeSuperAdmins: number) {
   if (!isSuperAdmin(actor)) return false;

@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 function buildTaskVisibilityWhere(
   actor: Awaited<ReturnType<typeof requireUser>>,
 ) {
-  return { OR: [personalOrScopedTasks(actor, 'tasks.view'), personalOrScopedTasks(actor, 'history.view')] };
+  return personalOrScopedTasks(actor, ['tasks.view', 'history.view']);
 }
 
 export async function GET(

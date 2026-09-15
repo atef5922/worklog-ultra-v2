@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { APP_ROLES } from "@/lib/auth/roles";
-import { PERMISSIONS, SCOPE_TYPES, canChangeProtectedAccount, isSuperAdmin } from "@/lib/auth/policy";
-import { actorInclude, authenticate, freshActor, fail, checkOrigin, AccessError, audit } from "@/lib/management/server";
+import { PERMISSIONS, SCOPE_TYPES, canChangeProtectedAccount, canReceiveAuditPermission, isSuperAdmin } from "@/lib/auth/policy";
+import { actorInclude, authenticate, freshActor, fail, checkDashboardActionOrigin, AccessError, audit } from "@/lib/management/server";
 
 const schema=z.object({userId:z.string().uuid(),role:z.enum(APP_ROLES),isActive:z.boolean(),managementEnabled:z.boolean(),
   departmentId:z.string().uuid().nullable(),teamId:z.string().uuid().nullable(),version:z.number().int().nonnegative(),
@@ -24,11 +24,14 @@ export async function GET(request: Request) {
 }
 export async function PUT(request: Request) {
  try {
-  checkOrigin(request); const actor=await authenticate("super_admin");
+  checkDashboardActionOrigin(request); const actor=await authenticate("super_admin");
   const parsed=schema.safeParse(await request.json());
   if(!parsed.success) throw new AccessError(parsed.error.issues[0]?.message ?? "Invalid access settings",400);
   const input=parsed.data;
   if(input.role==='employee' && (input.managementEnabled || input.permissions.length)) throw new AccessError("Employee accounts cannot receive management permissions.",400);
+  if(input.permissions.includes("audit_logs.view") && !canReceiveAuditPermission(input.role)) {
+   throw new AccessError("Audit Log access is limited to Super Admin, Moderator and Admin / HR.",400);
+  }
   const result=await db.$transaction(async tx=>{
    // Lock the entire authority set in a consistent order. Two admins cannot demote the last admins concurrently.
    await tx.$queryRaw`SELECT id::text FROM users WHERE role::text='super_admin' ORDER BY id FOR UPDATE`;

@@ -21,9 +21,35 @@ export async function freshActor(tx: Prisma.TransactionClient, id: string) {
   if (!actor?.isActive) throw new AccessError("Your access has changed. Please sign in again.");
   return actor;
 }
+export async function lockTransaction(tx: Prisma.TransactionClient, key: string) {
+  // PostgreSQL advisory-lock functions return void. Selecting that value
+  // directly makes PrismaPg try to deserialize an unsupported void column.
+  // Expose only a supported integer while retaining the transaction lock.
+  await tx.$queryRaw<Array<{ locked: number }>>`SELECT 1::int AS locked FROM pg_advisory_xact_lock(hashtext(${key}))`;
+}
 export function checkOrigin(request: Request) {
   const origin = request.headers.get("origin");
   if (origin && origin !== new URL(request.url).origin) throw new AccessError("Cross-origin request denied.");
+}
+export function checkDashboardActionOrigin(request: Request) {
+  try {
+    checkOrigin(request);
+    return;
+  } catch (error) {
+    const origin = request.headers.get("origin");
+    const host = request.headers.get("host")?.trim().toLowerCase();
+    try {
+      const requestProtocol = new URL(request.url).protocol;
+      const originUrl = origin ? new URL(origin) : null;
+      // Direct LAN access can leave request.url on Next's internal localhost
+      // authority. The browser's Origin must still exactly match the actual
+      // request Host and protocol; arbitrary external origins remain denied.
+      if (originUrl && host && originUrl.protocol === requestProtocol && originUrl.host.toLowerCase() === host) return;
+    } catch {
+      // Preserve the original origin failure below.
+    }
+    throw error;
+  }
 }
 export function fail(error: unknown) {
   if (error instanceof AccessError) return NextResponse.json({message:error.message},{status:error.status});

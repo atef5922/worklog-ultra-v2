@@ -8,6 +8,12 @@ export function taskProgress(status:string,checklist:ChecklistItem[]){
  // Checklist completion is evidence, not the final Done action.
  return Math.round(checklist.filter(i=>i.done).length/checklist.length*100);
 }
+export function taskTimeUsage(trackedMinutes:number,estimatedMinutes:number|null){
+ const tracked=Math.max(0,Math.floor(trackedMinutes));
+ if(estimatedMinutes===null||estimatedMinutes<=0)return {trackedMinutes:tracked,estimatedMinutes:null,usagePercent:null,overMinutes:0};
+ const estimated=Math.floor(estimatedMinutes);
+ return {trackedMinutes:tracked,estimatedMinutes:estimated,usagePercent:Math.round(tracked/estimated*100),overMinutes:Math.max(0,tracked-estimated)};
+}
 export function deadlineState(status:string,due:Date|string|null,now:Date){
  if(status==='done'||!due)return 'none';
  const ms=new Date(due).getTime()-now.getTime();

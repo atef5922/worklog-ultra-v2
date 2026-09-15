@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   filterTodaysWorkPlanTasks,
   getTaskDaySeed,
@@ -149,5 +149,51 @@ describe("dashboard work-plan status filters", () => {
     expect(matchesDashboardWorkPlanFilter("pending", false, "all")).toBe(true);
     expect(matchesDashboardWorkPlanFilter("in_progress", false, "all")).toBe(true);
     expect(matchesDashboardWorkPlanFilter("done", false, "all")).toBe(true);
+  });
+});
+
+describe("server-confirmed task timestamps", () => {
+  afterEach(() => vi.restoreAllMocks());
+  type TestUpdate = ReturnType<typeof task>["updates"][number];
+  const update = (overrides: Partial<TestUpdate> = {}): TestUpdate => ({
+    status: "done" as const, reportDate: today, trackedMinutes: 0,
+    actualStart: null, actualEnd: today + "T12:30:00+06:00", ...overrides,
+  });
+
+  it("shows a zero-time completion without inventing a start time", () => {
+    const row = task("zero-done", today, [update()]);
+    expect(getTaskDaySeed(row, today)).toMatchObject({
+      status: "done", trackedMinutes: 0, actualStart: null,
+      actualEnd: today + "T12:30:00+06:00",
+    });
+  });
+
+  it.each([0, Date.UTC(2040, 0, 1)])("does not hide saved timestamps when the browser clock is %s", clock => {
+    vi.spyOn(Date, "now").mockReturnValue(clock);
+    const saved = update({trackedMinutes: 30, actualStart: today + "T12:00:00+06:00"});
+    expect(getTaskDaySeed(task("clock-skew", today, [saved]), today)).toMatchObject({
+      actualStart: saved.actualStart, actualEnd: saved.actualEnd,
+    });
+  });
+
+  it.each([
+    {status: "in_progress" as const},
+    {trackedMinutes: 10},
+    {actualStart: "invalid"},
+    {actualStart: "2026-09-09T12:00:00+06:00"},
+    {actualEnd: "invalid"},
+    {actualEnd: "2026-09-09T23:59:59+06:00"},
+    {actualEnd: "2026-09-11T00:00:01+06:00"},
+    {actualStart: today + "T13:00:00+06:00"},
+  ])("still rejects unsupported or invalid end evidence: %o", overrides => {
+    expect(getTaskDaySeed(task("invalid-evidence", today, [update(overrides)]), today).actualEnd).toBeNull();
+  });
+
+  it("preserves a valid server pause at the workday's midnight boundary", () => {
+    const saved = update({status: "in_progress", trackedMinutes: 60,
+      actualStart: today + "T23:00:00+06:00", actualEnd: "2026-09-11T00:00:00+06:00"});
+    expect(getTaskDaySeed(task("midnight-pause", today, [saved]), today)).toMatchObject({
+      actualStart: saved.actualStart, actualEnd: saved.actualEnd,
+    });
   });
 });

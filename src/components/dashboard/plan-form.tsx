@@ -294,7 +294,7 @@ export function PlanForm({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        planDate: new Date().toISOString(),
+        planDate: toDateOnly(),
         tasks: tasksToCreate.map((task) => ({
           taskTitle: task.taskTitle,
           taskDescription: task.taskDescription,

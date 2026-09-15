@@ -1,3 +1,4 @@
+import {projectTaskTimers} from "@/lib/task-timer-projection";
 import { attendanceRevision } from "@/lib/attendance-record";
 import { ReminderKind, TaskStatus, UserRole } from "@prisma/client";
 import { endOfDay, startOfDay, subDays } from "date-fns";
@@ -280,6 +281,7 @@ export async function getAssignmentsData(userId: string) {
           orderBy: { createdAt: "desc" },
           take: 1,
         },
+        timerStates: true,
         updates: {
           orderBy: { updatedAt: "desc" },
         },
@@ -318,6 +320,7 @@ export async function getAssignmentsData(userId: string) {
           orderBy: { createdAt: "desc" },
           take: 1,
         },
+        timerStates: true,
         updates: {
           orderBy: { updatedAt: "desc" },
         },
@@ -354,7 +357,7 @@ export async function getAssignmentsData(userId: string) {
             : null,
         }
       : null,
-    updates: (task.updates ?? []).map((update) => ({
+    updates: projectTaskTimers(task).updates.map((update) => ({
       status: update.status,
       note: update.note,
       trackedMinutes: update.trackedMinutes,
@@ -680,6 +683,7 @@ export async function getPlanWithReports(
       planDate: options?.includeCarryOver ? { lte: new Date(day) } : new Date(day),
     },
     include: {
+      timerStates: true,
       updates: {
         orderBy: [{ reportDate: "desc" }, { updatedAt: "desc" }],
       },
@@ -699,7 +703,7 @@ export async function getPlanWithReports(
 
   return (tasks ?? []).map((task) => ({
     ...task,
-    updates: task.updates ?? [],
+    updates: projectTaskTimers(task).updates,
     latestReview: task.editRequests[0]
       ? {
           id: task.editRequests[0].id,
@@ -851,6 +855,7 @@ export async function getHistoryData(userId: string, from?: string, to?: string)
         ],
       },
       include: {
+        timerStates: true,
         department: true,
         updates: {
           // Prevent a day/range report from leaking the same task's updates
@@ -867,12 +872,10 @@ export async function getHistoryData(userId: string, from?: string, to?: string)
       orderBy: [{ planDate: "desc" }, { createdAt: "desc" }],
     });
 
-  const visibleTasks = tasks
+  const visibleTasks = tasks.map(task=>projectTaskTimers(task))
     .filter((task) => {
       const isToday = toDateOnly(task.planDate) === toDateOnly();
       const latestUpdate = task.updates[0] ?? null;
-      const isStickyDashboardTask =
-        Boolean(extractContinuationMeta(task.taskDescription)) || isRecurringTaskDescription(task.taskDescription);
       const archivedToHistory = isMovedToHistory(task.taskDescription);
       const isCompleted =
         latestUpdate?.status === TaskStatus.done ||
@@ -885,7 +888,7 @@ export async function getHistoryData(userId: string, from?: string, to?: string)
           latestUpdate?.note?.trim(),
       );
 
-      if (isToday && !archivedToHistory && !isCompleted) {
+      if (isToday && !archivedToHistory && !isCompleted && !hasWorkEvidence) {
         return false;
       }
 
@@ -893,7 +896,7 @@ export async function getHistoryData(userId: string, from?: string, to?: string)
         return false;
       }
 
-      return !(isToday && isStickyDashboardTask && !archivedToHistory);
+      return true; // Reports include current running work as well as paused/completed work.
     })
     .filter((task, index, list) => {
       const continuationMeta = extractContinuationMeta(task.taskDescription);

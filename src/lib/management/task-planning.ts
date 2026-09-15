@@ -1,7 +1,7 @@
 import 'server-only';
 import {db} from '@/lib/db';
 import {getServerAuthContext} from '@/lib/auth/server';
-import {employeeScope} from '@/lib/auth/policy';
+import {personalOrScopedTasks} from '@/lib/auth/policy';
 import {AccessError,freshActor,audit,checkOrigin,fail} from './server';
 import {planningSchema,readChecklist} from './task-insights';
 import {NextResponse} from 'next/server';
@@ -14,7 +14,7 @@ export async function saveTaskPlanning(request:Request,id:string){try{
  await db.$transaction(async tx=>{
   const actor=await freshActor(tx,user.id);
   await tx.$queryRaw`SELECT id FROM daily_tasks WHERE id=${id}::uuid FOR UPDATE`;
-  const task=await tx.dailyTask.findFirst({where:{id,OR:[{userId:actor.id},{user:employeeScope(actor,'tasks.update')}]},include:{updates:{orderBy:[{reportDate:'desc'},{updatedAt:'desc'}],take:1}}});
+  const task=await tx.dailyTask.findFirst({where:{id,...personalOrScopedTasks(actor,'tasks.update')},include:{updates:{orderBy:[{reportDate:'desc'},{updatedAt:'desc'}],take:1}}});
   if(!task)throw new AccessError('Task not found in your scope.',404);
   if(task.planningVersion!==input.version)throw new AccessError('Planning details changed. Reload before saving.',409);
   if(task.updates[0]?.status==='done')throw new AccessError('Completed task records are read-only. Reopen first.',409);
