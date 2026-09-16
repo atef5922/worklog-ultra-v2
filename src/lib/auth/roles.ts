@@ -36,10 +36,6 @@ export function canAccessTeamAnalytics(role: AppRole) {
   return role === "super_admin";
 }
 
-export function canAccessAttendancePage(role: AppRole) {
-  return APP_ROLES.includes(role);
-}
-
 export function roleBadgeUpper(role: AppRole) {
   return role.replaceAll("_", " ").toUpperCase();
 }

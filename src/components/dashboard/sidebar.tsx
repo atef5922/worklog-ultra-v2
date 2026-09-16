@@ -8,7 +8,7 @@ import { BellRing, BriefcaseBusiness, CalendarCheck2, ChevronLeft, ChevronRight,
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Button } from "@/components/ui/button";
 import { getSidebarLayout } from "@/lib/sidebar-layout";
-import { canOpenManagement, can, canViewAuditLogs, isSuperAdmin } from "@/lib/auth/policy";
+import { canOpenManagement, can, canViewAttendanceDetails, canViewAuditLogs, isSuperAdmin } from "@/lib/auth/policy";
 import { cn } from "@/lib/utils";
 import { NOTICES_READ_EVENT } from "@/lib/dashboard-live-events";
 import type { DashboardSidebarUser } from "@/lib/contracts/user";
@@ -58,6 +58,7 @@ function SidebarContent({
   const [navigationHeight, setNavigationHeight] = useState(0);
   const [pageAnchor, setPageAnchor] = useState({ pathname: "", index: 0 });
   const visibleItems = navItems.filter((item) => {
+    if (item.href === "/dashboard/attendance") return canViewAttendanceDetails(user);
     if (item.href === "/management") return canOpenManagement(user);
     if (item.href === "/management/reports") return can(user, "reports.view");
     if (item.href === "/management/audit") return canViewAuditLogs(user);

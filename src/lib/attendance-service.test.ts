@@ -3,7 +3,8 @@ vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => {
   const records = { findFirst: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), create: vi.fn(), update: vi.fn() };
   const tx = { dailyTask:{findMany:vi.fn().mockResolvedValue([])}, $queryRaw: vi.fn(), user: { findUnique: vi.fn() }, attendanceRecord: records,
-    attendanceWorkSession: { findMany: vi.fn(), create: vi.fn(), update: vi.fn() }, attendanceBreakSession: { create: vi.fn(), update: vi.fn() } };
+    attendanceWorkSession: { findMany: vi.fn(), create: vi.fn(), update: vi.fn() }, attendanceBreakSession: { create: vi.fn(), update: vi.fn() },
+    managementAuditLog: { create: vi.fn() } };
   return { auth: vi.fn(), tx, db: { $transaction: vi.fn(), attendanceRecord: records } };
 });
 vi.mock("@/lib/db", () => ({ db: mocks.db }));
@@ -104,7 +105,46 @@ describe("attendance API", () => {
   it("stale Out cannot close the next session", async () => { await postAttendance(request("check_in")); const stale = request("check_out"); await postAttendance(request("check_out")); await postAttendance(request("check_in")); expect((await postAttendance(stale)).status).toBe(409); expect(rows[0].workSessions).toHaveLength(2); expect(rows[0].workSessions[1].endedAt).toBeNull(); });
   it("stale End Break cannot end the next break", async () => { await postAttendance(request("check_in")); await postAttendance(request("break_start")); const stale = request("break_end"); await postAttendance(request("break_end")); await postAttendance(request("break_start")); expect((await postAttendance(stale)).status).toBe(409); expect(rows[0].breakSessions[1].endedAt).toBeNull(); });
   it("Out closes both active work and break at exactly the same server time", async () => { await postAttendance(request("check_in")); vi.setSystemTime(new Date("2026-09-14T14:00:00+06:00")); await postAttendance(request("break_start")); vi.setSystemTime(new Date("2026-09-14T14:45:08+06:00")); const response = await postAttendance(request("check_out")); expect(response.status).toBe(200); expect(rows[0].workSessions[0].endedAt).toEqual(new Date()); expect(rows[0].breakSessions[0].endedAt).toEqual(new Date()); });
-  it("keeps office time running past 7 PM and midnight, and permits an explicit overnight Out", async () => { await postAttendance(request("check_in")); vi.setSystemTime(new Date("2026-09-15T00:30:00+06:00")); const get = await getAttendance(); expect((await get.json()).snapshot).toMatchObject({ attendanceDate: day, active: true }); expect(rows[0].workSessions[0].endedAt).toBeNull(); expect((await postAttendance(request("check_out"))).status).toBe(200); expect(rows[0].workSessions[0].endedAt).toEqual(new Date()); });
+  it("auto-closes a forgotten Out at exactly 7:30 PM without granting overtime", async () => {
+    await postAttendance(request("check_in"));
+    vi.setSystemTime(new Date("2026-09-15T00:30:00+06:00"));
+    const get = await getAttendance();
+    expect(await get.json()).toMatchObject({ snapshot: null, active: false, onBreak: false });
+    expect(rows[0]).toMatchObject({
+      checkOutAt: new Date("2026-09-14T19:30:00+06:00"), workingMinutes: 539,
+    });
+    expect(rows[0].workSessions[0]).toMatchObject({
+      endedAt: new Date("2026-09-14T19:30:00+06:00"), endReason: "auto_cutoff_19_30",
+    });
+    expect(mocks.tx.managementAuditLog.create).toHaveBeenCalledTimes(1);
+  });
+  it("does not auto-close even one second before the 7:30 PM cutoff", async () => {
+    await postAttendance(request("check_in"));
+    vi.setSystemTime(new Date("2026-09-14T19:29:59+06:00"));
+    expect((await (await getAttendance()).json()).snapshot).toMatchObject({ active: true });
+    expect(rows[0].workSessions[0].endedAt).toBeNull();
+    expect(mocks.tx.managementAuditLog.create).not.toHaveBeenCalled();
+  });
+  it("rejects a new Check In at or after the hard cutoff", async () => {
+    vi.setSystemTime(new Date("2026-09-14T19:30:00+06:00"));
+    const response = await postAttendance(request("check_in"));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ message: "Check In is closed after the 7:30 PM attendance cutoff." });
+    expect(rows).toHaveLength(0);
+  });
+  it("auto-closes an open break once and remains idempotent on later syncs", async () => {
+    await postAttendance(request("check_in"));
+    vi.setSystemTime(new Date("2026-09-14T14:00:00+06:00"));
+    await postAttendance(request("break_start"));
+    vi.setSystemTime(new Date("2026-09-14T19:30:01+06:00"));
+    await getAttendance();
+    const cutoff = new Date("2026-09-14T19:30:00+06:00");
+    expect(rows[0].workSessions[0]).toMatchObject({ endedAt: cutoff, endReason: "auto_cutoff_19_30" });
+    expect(rows[0].breakSessions[0]).toMatchObject({ endedAt: cutoff, endReason: "auto_cutoff_19_30" });
+    expect(mocks.tx.managementAuditLog.create).toHaveBeenCalledTimes(1);
+    await getAttendance();
+    expect(mocks.tx.managementAuditLog.create).toHaveBeenCalledTimes(1);
+  });
   it("prevents a second open day even if today's closed record already exists", async () => { const yesterday = record("2026-09-13"); yesterday.workSessions = [session("2026-09-13T20:00:00+06:00")]; rows.push(yesterday, record()); expect((await postAttendance(request("check_in"))).status).toBe(409); expect(rows[1].workSessions).toHaveLength(0); });
   it("does not rewrite closed historical attendance", async () => { const old = record("2026-09-13"); old.workSessions = [session("2026-09-13T10:00:00+06:00", "2026-09-13T19:00:00+06:00")]; rows.push(old); expect((await postAttendance(request("check_out", { attendanceDate: "2026-09-13" }))).status).toBe(409); expect(mocks.tx.attendanceRecord.update).not.toHaveBeenCalled(); });
   it("rejects privileged details and shutdown actions", async () => { expect((await postAttendance(request("update_details"))).status).toBe(403); expect((await postAttendance(request("check_out", { endReason: "device_shutdown" }))).status).toBe(403); });

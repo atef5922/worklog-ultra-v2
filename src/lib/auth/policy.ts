@@ -1,9 +1,10 @@
 import type { Prisma } from "@prisma/client";
 
+export const ATTENDANCE_DETAILS_PERMISSION = "attendance.details.view" as const;
 export const PERMISSIONS = [
   "employees.view", "employees.update", "employees.status.manage",
   "tasks.view", "tasks.assign", "tasks.update", "tasks.reopen",
-  "attendance.view", "attendance.correct", "history.view", "reports.view", "reports.export",
+  ATTENDANCE_DETAILS_PERMISSION, "attendance.view", "attendance.correct", "history.view", "reports.view", "reports.export",
   "departments.view", "departments.manage", "notices.publish", "notices.manage", "audit_logs.view",
 ] as const;
 export type Permission = typeof PERMISSIONS[number];
@@ -33,6 +34,12 @@ export function canReceiveAuditPermission(role: string) {
 }
 export function canViewAuditLogs(actor: AccessActor) {
   return isSuperAdmin(actor) || (canReceiveAuditPermission(actor.role) && can(actor, "audit_logs.view"));
+}
+export function canViewAttendanceDetails(actor: AccessActor) {
+  if (actor.isActive === false) return false;
+  return isSuperAdmin(actor) || actor.permissions?.some(
+    permission => permission.permissionKey === ATTENDANCE_DETAILS_PERMISSION && permission.isGranted,
+  ) === true;
 }
 // Applied inside every management query, including aggregates and exports.
 export function employeeScope(actor: AccessActor, permission: Permission): Prisma.UserWhereInput {

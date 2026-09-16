@@ -6,6 +6,8 @@ import { extractAssignmentAttachmentMeta } from "@/lib/assignment-attachments";
 import { extractAssignmentReviewReason, isAssignmentReviewReason } from "@/lib/assignment-review";
 import { calculateSegmentedAttendanceMetrics } from "@/lib/attendance-policy";
 import { db } from "@/lib/db";
+import { canViewAttendanceDetails } from "@/lib/auth/policy";
+import { AccessError } from "@/lib/management/server";
 import { isMovedToHistory } from "@/lib/task-history-shared";
 import { isRecurringTaskDescription, stripRecurringTaskMeta } from "@/lib/recurring-task-templates";
 import { buildContinuationDescription, extractContinuationMeta, stripContinuationMeta } from "@/lib/task-continuation";
@@ -1444,7 +1446,10 @@ export async function getAttendanceData(user: {
   id: string;
   role: UserRole;
   departmentId?: string | null;
+  isActive?: boolean;
+  permissions?: { permissionKey: string; isGranted: boolean }[];
 }) {
+  if (!canViewAttendanceDetails(user)) throw new AccessError("Detailed Attendance access is not granted.", 403);
   const today = toDateOnly();
   const attendanceWhere = { id: user.id };
 
@@ -1527,6 +1532,8 @@ export async function getAttendanceData(user: {
 }
 
 export async function getCurrentUserAttendanceSnapshot(userId: string) {
+  const { autoCloseAttendanceForUser } = await import("@/lib/attendance-cutoff");
+  await autoCloseAttendanceForUser(userId);
   const today = toDateOnly();
   const openRecord = await db.attendanceRecord.findFirst({
     where: {

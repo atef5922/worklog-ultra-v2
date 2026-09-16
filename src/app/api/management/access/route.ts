@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { APP_ROLES } from "@/lib/auth/roles";
-import { PERMISSIONS, SCOPE_TYPES, canChangeProtectedAccount, canReceiveAuditPermission, isSuperAdmin } from "@/lib/auth/policy";
+import { ATTENDANCE_DETAILS_PERMISSION, PERMISSIONS, SCOPE_TYPES, canChangeProtectedAccount, canReceiveAuditPermission, isSuperAdmin } from "@/lib/auth/policy";
 import { actorInclude, authenticate, freshActor, fail, checkDashboardActionOrigin, AccessError, audit } from "@/lib/management/server";
 
 const schema=z.object({userId:z.string().uuid(),role:z.enum(APP_ROLES),isActive:z.boolean(),managementEnabled:z.boolean(),
@@ -28,7 +28,7 @@ export async function PUT(request: Request) {
   const parsed=schema.safeParse(await request.json());
   if(!parsed.success) throw new AccessError(parsed.error.issues[0]?.message ?? "Invalid access settings",400);
   const input=parsed.data;
-  if(input.role==='employee' && (input.managementEnabled || input.permissions.length)) throw new AccessError("Employee accounts cannot receive management permissions.",400);
+  if(input.role==='employee' && (input.managementEnabled || input.permissions.some(permission=>permission!==ATTENDANCE_DETAILS_PERMISSION))) throw new AccessError("Employee accounts can only receive Detailed Attendance page access.",400);
   if(input.permissions.includes("audit_logs.view") && !canReceiveAuditPermission(input.role)) {
    throw new AccessError("Audit Log access is limited to Super Admin, Moderator and Admin / HR.",400);
   }

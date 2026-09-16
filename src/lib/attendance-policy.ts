@@ -3,10 +3,14 @@ export const ATTENDANCE_SHIFT_START_HOUR = 10;
 export const ATTENDANCE_SHIFT_END_HOUR = 19;
 export const ATTENDANCE_SCHEDULED_MINUTES = 9 * 60;
 export const ATTENDANCE_INCLUDED_BREAK_MINUTES = 45;
+export const ATTENDANCE_AUTO_CUTOFF_HOUR = 19;
+export const ATTENDANCE_AUTO_CUTOFF_MINUTE = 30;
+export const ATTENDANCE_AUTO_CUTOFF_END_REASON = "auto_cutoff_19_30";
 
 export type AttendanceInterval = {
   startedAt: Date | string;
   endedAt?: Date | string | null;
+  endReason?: string | null;
 };
 
 type AttendanceCalculationInput = {
@@ -101,7 +105,15 @@ function durationAfter(intervals: MillisecondInterval[], boundary: number) {
  */
 export function calculateSegmentedAttendanceMetrics(input: SegmentedAttendanceCalculationInput) {
   const now = validDate(input.now) ?? new Date();
-  const workSessions = normalizeIntervals(input.workSessions, now);
+  const shiftEnd = dhakaBoundary(input.attendanceDate, ATTENDANCE_SHIFT_END_HOUR).getTime();
+  // A safety cutoff proves only that the session was left open. Keep 7:30 PM
+  // as the audited checkout, but never turn the unverified buffer into pay time.
+  const countableSessions = input.workSessions.map((session) => {
+    if (session.endReason !== ATTENDANCE_AUTO_CUTOFF_END_REASON || !Number.isFinite(shiftEnd)) return session;
+    const end = validDate(session.endedAt);
+    return end && end.getTime() > shiftEnd ? { ...session, endedAt: new Date(shiftEnd) } : session;
+  });
+  const workSessions = normalizeIntervals(countableSessions, now);
   // Invalid/legacy break fragments outside office sessions never deduct outside time twice.
   const breakSessions = intersectIntervals(normalizeIntervals(input.breakSessions ?? [], now), workSessions);
   const legacy = Number(input.legacyBreakMinutes ?? 0);
@@ -113,7 +125,6 @@ export function calculateSegmentedAttendanceMetrics(input: SegmentedAttendanceCa
   const presenceMs = workSessions.length ? workSessions.at(-1)!.end - workSessions[0].start : 0;
   const workingMs = Math.max(0, sessionMs - excessMs);
   const activeMs = Math.max(0, sessionMs - breakMs);
-  const shiftEnd = dhakaBoundary(input.attendanceDate, ATTENDANCE_SHIFT_END_HOUR).getTime();
   const overtimeMs = Number.isFinite(shiftEnd) ? Math.max(0,
     durationAfter(workSessions, shiftEnd) - durationAfter(breakSessions, shiftEnd)) : 0;
 

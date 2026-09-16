@@ -2,7 +2,8 @@ import { UserRole } from "@prisma/client";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { canAccessAttendancePage, canAccessTeamAnalytics, routeByRole } from "@/lib/auth/roles";
+import { canAccessTeamAnalytics, routeByRole } from "@/lib/auth/roles";
+import { canViewAttendanceDetails } from "@/lib/auth/policy";
 import { verifySessionToken } from "@/lib/auth/session";
 
 export async function getServerAuthContext() {
@@ -61,7 +62,7 @@ export async function requireEmployee() {
 export async function requireAttendancePageAccess() {
   const user = await requireUser();
 
-  if (!canAccessAttendancePage(user.role)) {
+  if (!canViewAttendanceDetails(user)) {
     redirect(routeByRole());
   }
 

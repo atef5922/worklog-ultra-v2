@@ -1,5 +1,5 @@
 import {describe,it,expect} from 'vitest';
-import {can,canOpenManagement,canViewAuditLogs,employeeScope,ownTeamScope,assigneeScope,canChangeProtectedAccount,READ_PERMISSIONS,type AccessActor} from './policy';
+import {ATTENDANCE_DETAILS_PERMISSION,can,canOpenManagement,canViewAttendanceDetails,canViewAuditLogs,employeeScope,ownTeamScope,assigneeScope,canChangeProtectedAccount,READ_PERMISSIONS,type AccessActor} from './policy';
 const user=(role:string,enabled=false):AccessActor=>({id:'a',role,isActive:true,managementEnabled:enabled,permissions:READ_PERMISSIONS.map(permissionKey=>({permissionKey,isGranted:true})),accessScopes:[{scopeType:'departments',departmentId:'dept-a'}]});
 describe('individual management access',()=>{
  for(const role of ['moderator','admin','team_head']){
@@ -7,6 +7,18 @@ describe('individual management access',()=>{
   it(`${role}: read-only grant cannot write or export`,()=>{expect(can(user(role,true),'attendance.view')).toBe(true);expect(can(user(role,true),'attendance.correct')).toBe(false);expect(can(user(role,true),'tasks.assign')).toBe(false);expect(can(user(role,true),'reports.export')).toBe(false);});
  }
  it('employee never gets management even with forged gate and grants',()=>expect(canOpenManagement(user('employee',true))).toBe(false));
+ it('employee cannot see detailed Attendance without the explicit personal grant',()=>expect(canViewAttendanceDetails(user('employee'))).toBe(false));
+ it('employee can see detailed Attendance with the explicit grant but still has no management access',()=>{
+  const employee={...user('employee'),permissions:[{permissionKey:ATTENDANCE_DETAILS_PERMISSION,isGranted:true}]};
+  expect(canViewAttendanceDetails(employee)).toBe(true);expect(canOpenManagement(employee)).toBe(false);
+ });
+ it('legacy attendance.view does not unlock the personal detailed page',()=>expect(canViewAttendanceDetails({...user('employee'),permissions:[{permissionKey:'attendance.view',isGranted:true}]})).toBe(false));
+ it('inactive or explicitly revoked accounts cannot see detailed Attendance',()=>{
+  const grant={permissionKey:ATTENDANCE_DETAILS_PERMISSION,isGranted:true};
+  expect(canViewAttendanceDetails({...user('employee'),isActive:false,permissions:[grant]})).toBe(false);
+  expect(canViewAttendanceDetails({...user('employee'),permissions:[{...grant,isGranted:false}]})).toBe(false);
+ });
+ it('Super Admin always sees detailed Attendance',()=>expect(canViewAttendanceDetails(user('super_admin'))).toBe(true));
  it('inactive Super Admin cannot access',()=>expect(can({...user('super_admin'),isActive:false},'employees.view')).toBe(false));
  it('Super Admin full access',()=>expect(employeeScope(user('super_admin'),'employees.view')).toEqual({}));
  it('empty scope fails closed',()=>expect(employeeScope({...user('admin',true),accessScopes:[]},'employees.view')).toEqual({id:{in:[]}}));

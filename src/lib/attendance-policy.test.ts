@@ -104,6 +104,22 @@ describe("calculateAttendanceMetrics", () => {
     expect(result.workingMinutes).toBe(540);
     expect(result.overtimeMinutes).toBe(60);
   });
+  it("records a 7:30 PM safety checkout without crediting unverified overtime", () => {
+    const result = calculateSegmentedAttendanceMetrics({
+      attendanceDate,
+      workSessions: [{
+        startedAt: "2026-09-12T10:00:00+06:00",
+        endedAt: "2026-09-12T19:30:00+06:00",
+        endReason: "auto_cutoff_19_30",
+      }],
+    });
+    expect(result).toMatchObject({
+      presenceMinutes: 540,
+      sessionMinutes: 540,
+      workingMinutes: 540,
+      overtimeMinutes: 0,
+    });
+  });
 });
 
 describe("segmented attendance safety", () => {

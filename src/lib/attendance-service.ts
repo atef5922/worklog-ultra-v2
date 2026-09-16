@@ -9,6 +9,7 @@ import { AccessError, audit, checkDashboardActionOrigin, freshActor } from "@/li
 import { toDateOnly } from "@/lib/utils";
 import { attendanceActionSchema, attendanceClientTimeError, attendanceTransitionError } from "@/lib/attendance-action-validation";
 import { attendanceInclude, attendanceRevision, serializeAttendanceRecord, syncAttendanceSummary, type AttendanceRecordWithSessions } from "@/lib/attendance-record";
+import { attendanceAutoCutoffAt, autoCloseAttendanceForUser } from "@/lib/attendance-cutoff";
 
 const AUTO_RECONCILIATION_REASON = "Automatically closed an earlier open attendance day at the next recorded office entry boundary.";
 
@@ -80,6 +81,7 @@ export async function getAttendance() {
     const { user } = await getServerAuthContext();
     if (!user) return apiError("Authentication required.", 401);
     const now = new Date();
+    await autoCloseAttendanceForUser(user.id, now);
     const open = await db.attendanceRecord.findFirst({
       where: { userId: user.id, workSessions: { some: { endedAt: null } } },
       orderBy: { attendanceDate: "desc" }, include: attendanceInclude,
@@ -109,6 +111,7 @@ export async function postAttendance(request: Request) {
     if (!parsed.success) return apiError(parsed.error.issues[0]?.message ?? "Invalid attendance action.");
     const input = parsed.data;
     if (input.expectedUserId !== user.id) return apiError("Your session changed. Please sign in again.", 409);
+    await autoCloseAttendanceForUser(user.id, new Date());
 
     const result = await db.$transaction(async tx => {
       // Lock the employee before reading ANY day's records, including the first In of a new day.
@@ -132,6 +135,9 @@ export async function postAttendance(request: Request) {
       const timeError = attendanceClientTimeError(input.occurredAt, now);
       if (timeError) throw new AccessError(timeError, 400);
       if (input.action === "check_in" && input.attendanceDate !== today) throw new AccessError("Check In must be recorded for today.", 400);
+      if (input.action === "check_in" && now >= attendanceAutoCutoffAt(today)) {
+        throw new AccessError("Check In is closed after the 7:30 PM attendance cutoff.", 409);
+      }
       if (openRecords.length > 1 && record) {
         await reconcileEarlierOpenDays(tx, user.id, openRecords, record.id, now);
       }

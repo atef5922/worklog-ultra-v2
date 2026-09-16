@@ -10,6 +10,7 @@ describe("scroll-free sidebar layout", () => {
     expect(result.rowHeight * 13 + 12 * 2).toBeLessThanOrEqual(480);
   });
   it("does not stretch employee menus into oversized rows", () => {
+    expect(getSidebarLayout({itemCount:6,availableHeight:700}).rowHeight).toBe(40);
     expect(getSidebarLayout({itemCount:7,availableHeight:700}).rowHeight).toBe(40);
   });
   it("paginates a short viewport instead of clipping menu items", () => {
