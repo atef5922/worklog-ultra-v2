@@ -1,0 +1,32 @@
+.table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.table th,
+.table td {
+  border-right: 1px solid var(--panel-border);
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.table tr > :first-child {
+  border-left: 1px solid var(--panel-border);
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-top: 1px solid var(--panel-border);
+  background: var(--panel-muted);
+  font-weight: 650;
+}
+
+.table tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--panel-muted) 55%, var(--panel));
+}
+
+.table tbody tr:hover td,
+.table tbody tr:focus-within td {
+  background: color-mix(in srgb, var(--primary) 7%, var(--panel));
+}

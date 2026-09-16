@@ -9,13 +9,13 @@ export const PERMISSIONS = [
 ] as const;
 export type Permission = typeof PERMISSIONS[number];
 export const READ_PERMISSIONS: Permission[] = ["employees.view", "tasks.view", "attendance.view", "history.view", "reports.view", "departments.view"];
-export const SCOPE_TYPES = ["all_company", "departments", "teams", "own_team", "self"] as const;
+export const SCOPE_TYPES = ["all_company", "departments", "teams", "employees", "own_team", "self"] as const;
 export type AccessActor = {
   id: string; role: string; isActive?: boolean; departmentId?: string | null; teamId?: string | null;
   managementEnabled?: boolean; accessVersion?: number;
   ledTeams?: { id: string }[];
   permissions?: { permissionKey: string; isGranted: boolean }[];
-  accessScopes?: { scopeType: string; departmentId?: string | null; teamId?: string | null }[];
+  accessScopes?: { scopeType: string; departmentId?: string | null; teamId?: string | null; employeeId?: string | null }[];
 };
 export function isSuperAdmin(actor: Pick<AccessActor, "role" | "isActive">) {
   return actor.role === "super_admin" && actor.isActive !== false;
@@ -36,10 +36,7 @@ export function canViewAuditLogs(actor: AccessActor) {
   return isSuperAdmin(actor) || (canReceiveAuditPermission(actor.role) && can(actor, "audit_logs.view"));
 }
 export function canViewAttendanceDetails(actor: AccessActor) {
-  if (actor.isActive === false) return false;
-  return isSuperAdmin(actor) || actor.permissions?.some(
-    permission => permission.permissionKey === ATTENDANCE_DETAILS_PERMISSION && permission.isGranted,
-  ) === true;
+  return can(actor, "employees.view") && can(actor, "attendance.view");
 }
 // Applied inside every management query, including aggregates and exports.
 export function employeeScope(actor: AccessActor, permission: Permission): Prisma.UserWhereInput {
@@ -50,6 +47,7 @@ export function employeeScope(actor: AccessActor, permission: Permission): Prism
   const OR: Prisma.UserWhereInput[] = [];
   for (const scope of scopes) {
     if (scope.scopeType === "self") OR.push({ id: actor.id });
+    if (scope.scopeType === "employees" && scope.employeeId) OR.push({ id: scope.employeeId });
     if (scope.scopeType === "departments" && scope.departmentId) OR.push({ departmentId: scope.departmentId });
     if (scope.scopeType === "teams" && scope.teamId) OR.push({ teamId: scope.teamId });
     if (scope.scopeType === "own_team") {

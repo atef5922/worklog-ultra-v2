@@ -1,10 +1,84 @@
-'use client';
-import {useState} from 'react';
-import {useRouter} from 'next/navigation';
-import {toast} from 'sonner';
-import styles from './employee-profile-editor.module.css';
-export function EmployeeProfileEditor({employee}:{employee:{id:string;name:string;designation:string|null;phone:string|null;location:string|null;updatedAt:string}}){
- const [busy,setBusy]=useState(false);const [expanded,setExpanded]=useState(false);const router=useRouter();
- async function save(event:React.FormEvent<HTMLFormElement>){event.preventDefault();if(busy)return;setBusy(true);const form=new FormData(event.currentTarget);try{const response=await fetch(`/api/management/employees/${employee.id}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({...Object.fromEntries(form),updatedAt:employee.updatedAt})});const data=await response.json();if(!response.ok)throw new Error(data.message);toast.success(data.message);router.refresh();}catch(e){toast.error(e instanceof Error?e.message:'Update failed.');}finally{setBusy(false);}}
- return <section className={styles.editor}><button type="button" className={styles.summary} aria-expanded={expanded} onClick={()=>setExpanded(current=>!current)}>Edit employee profile</button>{expanded?<form onSubmit={save} className={styles.form}>{(['name','designation','phone','location'] as const).map(key=><label key={key} className={styles.label}>{key}<input name={key} required={key==='name'} defaultValue={employee[key]??''} maxLength={key==='phone'?40:key==='location'?200:120} className={styles.field}/></label>)}<label className={`${styles.label} ${styles.reason}`}>Reason for change<textarea required minLength={10} maxLength={1000} name="reason" rows={1} className={`${styles.field} ${styles.textarea}`}/></label><div className={styles.actions}><button disabled={busy} className={styles.save}>{busy?'Saving…':'Save profile'}</button><span title="Roles, management grants and departments remain under Super Admin Access Control.">Profile fields only</span></div></form>:null}</section>;
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import styles from "./employee-profile-editor.module.css";
+
+type EditableEmployee = {
+  id: string;
+  name: string;
+  email: string;
+  designation: string | null;
+  phone: string | null;
+  location: string | null;
+  updatedAt: string;
+};
+
+export function EmployeeProfileEditor({ employee }: { employee: EditableEmployee }) {
+  const [busy, setBusy] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const router = useRouter();
+
+  async function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    const form = new FormData(event.currentTarget);
+    try {
+      const response = await fetch(`/api/management/employees/${employee.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...Object.fromEntries(form), updatedAt: employee.updatedAt }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message);
+      toast.success(data.message);
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Update failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className={styles.editor}>
+      <button
+        type="button"
+        className={styles.summary}
+        aria-expanded={expanded}
+        onClick={() => setExpanded((current) => !current)}
+      >
+        Edit employee profile
+      </button>
+      {expanded ? (
+        <form onSubmit={save} className={styles.form}>
+          {(["name", "email", "designation", "phone", "location"] as const).map((key) => (
+            <label key={key} className={styles.label}>
+              {key}
+              <input
+                name={key}
+                type={key === "email" ? "email" : "text"}
+                required={key === "name" || key === "email"}
+                defaultValue={employee[key] ?? ""}
+                maxLength={key === "email" ? 254 : key === "phone" ? 40 : key === "location" ? 200 : 120}
+                className={styles.field}
+              />
+            </label>
+          ))}
+          <label className={`${styles.label} ${styles.reason}`}>
+            Reason for change
+            <textarea required minLength={10} maxLength={1000} name="reason" rows={1} className={`${styles.field} ${styles.textarea}`} />
+          </label>
+          <div className={styles.actions}>
+            <button disabled={busy} className={styles.save}>{busy ? "Saving…" : "Save profile"}</button>
+            <span title="Email changes sign out the employee. Roles, management grants and departments remain under Super Admin Access Control.">
+              Changing email signs out the employee.
+            </span>
+          </div>
+        </form>
+      ) : null}
+    </section>
+  );
 }

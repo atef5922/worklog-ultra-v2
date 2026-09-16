@@ -8,7 +8,12 @@ const params = new URLSearchParams(location.search);
 const user: DashboardSidebarUser = {
   id: "sidebar-fixture", name: "Sidebar Test", role: (params.get("role") || "super_admin") as DashboardSidebarUser["role"],
   designation: null, avatarUrl: null, managementEnabled: params.get("management") !== "false",
-  permissions: [{permissionKey:"reports.view",isGranted:true},{permissionKey:"audit_logs.view",isGranted:true}],
+  permissions: [
+    {permissionKey:"reports.view",isGranted:true},{permissionKey:"audit_logs.view",isGranted:true},
+    ...(params.get("attendance")==="true"?[
+      {permissionKey:"employees.view",isGranted:true},{permissionKey:"attendance.view",isGranted:true},
+    ]:[]),
+  ],
 };
 
 createRoot(document.getElementById("root")!).render(

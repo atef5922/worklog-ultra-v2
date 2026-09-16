@@ -6,24 +6,24 @@ import {
   ATTENDANCE_AUTO_CUTOFF_END_REASON,
   ATTENDANCE_AUTO_CUTOFF_HOUR,
   ATTENDANCE_AUTO_CUTOFF_MINUTE,
+  ATTENDANCE_EXTENDED_CUTOFF_END_REASON,
 } from "@/lib/attendance-policy";
 import { attendanceInclude, syncAttendanceSummary } from "@/lib/attendance-record";
 import { audit } from "@/lib/management/server";
 import { pauseUserTaskTimers } from "@/lib/task-timer-service";
 import { getDhakaCutoffIso, toDateOnly } from "@/lib/utils";
 
-const AUTO_CUTOFF_AUDIT_REASON =
-  "Automatically closed an open attendance session at the 7:30 PM Asia/Dhaka safety cutoff.";
 const BATCH_SIZE = 500;
 
-export function attendanceAutoCutoffAt(attendanceDate: Date | string) {
-  return new Date(
+export function attendanceAutoCutoffAt(attendanceDate: Date | string, extendedUntil?: Date | null) {
+  const standard = new Date(
     getDhakaCutoffIso(
       toDateOnly(attendanceDate),
       ATTENDANCE_AUTO_CUTOFF_HOUR,
       ATTENDANCE_AUTO_CUTOFF_MINUTE,
     ),
   );
+  return extendedUntil && extendedUntil > standard ? extendedUntil : standard;
 }
 
 type AutoCloseResult = {
@@ -40,13 +40,13 @@ export async function autoCloseAttendanceForUser(
     where: { userId, workSessions: { some: { endedAt: null } } },
     orderBy: { attendanceDate: "asc" },
     select: {
-      attendanceDate: true,
+      attendanceDate: true, cutoffExtendedUntil: true,
       workSessions: { where: { endedAt: null }, select: { startedAt: true } },
     },
   });
   if (!candidate) return { closedRecords: 0, skippedRecords: 0 };
 
-  const candidateCutoff = attendanceAutoCutoffAt(candidate.attendanceDate);
+  const candidateCutoff = attendanceAutoCutoffAt(candidate.attendanceDate, candidate.cutoffExtendedUntil);
   if (
     now < candidateCutoff ||
     !candidate.workSessions.some((session) => session.startedAt <= candidateCutoff)
@@ -64,7 +64,7 @@ export async function autoCloseAttendanceForUser(
       });
 
       const eligible = records.flatMap((record) => {
-        const cutoff = attendanceAutoCutoffAt(record.attendanceDate);
+        const cutoff = attendanceAutoCutoffAt(record.attendanceDate, record.cutoffExtendedUntil);
         const openWork = record.workSessions.filter((session) => !session.endedAt);
         const openBreaks = record.breakSessions.filter((session) => !session.endedAt);
         const valid =
@@ -73,7 +73,9 @@ export async function autoCloseAttendanceForUser(
           openBreaks.length <= 1 &&
           openWork[0].startedAt <= cutoff &&
           (!openBreaks[0] || openBreaks[0].startedAt <= cutoff);
-        return valid ? [{ record, cutoff, openWork: openWork[0], openBreak: openBreaks[0] }] : [];
+        const reason = record.cutoffExtendedUntil && record.cutoffExtendedUntil > attendanceAutoCutoffAt(record.attendanceDate)
+          ? ATTENDANCE_EXTENDED_CUTOFF_END_REASON : ATTENDANCE_AUTO_CUTOFF_END_REASON;
+        return valid ? [{ record, cutoff, reason, openWork: openWork[0], openBreak: openBreaks[0] }] : [];
       });
 
       if (!eligible.length) {
@@ -82,18 +84,18 @@ export async function autoCloseAttendanceForUser(
 
       // Stop task timers at the boundary, not when delayed reconciliation runs.
       const taskCutoff = new Date(Math.max(...eligible.map((entry) => entry.cutoff.getTime())));
-      await pauseUserTaskTimers(tx, userId, taskCutoff, ATTENDANCE_AUTO_CUTOFF_END_REASON, userId);
+      await pauseUserTaskTimers(tx, userId, taskCutoff, eligible.at(-1)?.reason ?? ATTENDANCE_AUTO_CUTOFF_END_REASON, userId);
 
-      for (const { record, cutoff, openWork, openBreak } of eligible) {
+      for (const { record, cutoff, reason, openWork, openBreak } of eligible) {
         if (openBreak) {
           await tx.attendanceBreakSession.update({
             where: { id: openBreak.id },
-            data: { endedAt: cutoff, endReason: ATTENDANCE_AUTO_CUTOFF_END_REASON },
+            data: { endedAt: cutoff, endReason: reason },
           });
         }
         await tx.attendanceWorkSession.update({
           where: { id: openWork.id },
-          data: { endedAt: cutoff, endReason: ATTENDANCE_AUTO_CUTOFF_END_REASON },
+          data: { endedAt: cutoff, endReason: reason },
         });
         const updated = await syncAttendanceSummary(tx, record.id, now);
         await audit(
@@ -103,7 +105,7 @@ export async function autoCloseAttendanceForUser(
           "attendance.auto_cutoff",
           record,
           updated,
-          AUTO_CUTOFF_AUDIT_REASON,
+          `Automatically closed an open attendance session at ${cutoff.toISOString()} after the employee did not check out.`,
         );
       }
 

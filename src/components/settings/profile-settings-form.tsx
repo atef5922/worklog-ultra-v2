@@ -1,6 +1,6 @@
 "use client";
 
-import { Building2, MapPin, Phone, UserRound } from "lucide-react";
+import { Building2, LockKeyhole, MapPin, Phone, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -8,19 +8,17 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { DepartmentOption, ProfileSettingsUser, ProfileUpdatePayload, ProfileUpdateResponse } from "@/lib/contracts/user";
+import type { ProfileSettingsUser, ProfileUpdatePayload, ProfileUpdateResponse } from "@/lib/contracts/user";
 
 export function ProfileSettingsForm({
   user,
-  departments = [],
+  departmentName,
 }: {
   user: ProfileSettingsUser;
-  departments: DepartmentOption[];
+  departmentName: string;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [departmentId, setDepartmentId] = useState(user.departmentId ?? "__none__");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl ?? "");
   const avatarPreview = useMemo(() => (avatarFile ? URL.createObjectURL(avatarFile) : avatarUrl), [avatarFile, avatarUrl]);
@@ -69,7 +67,6 @@ export function ProfileSettingsForm({
       avatarUrl: nextAvatarUrl,
       monthlySalary: undefined,
       expectedDailyHours: undefined,
-      departmentId: departmentId === "__none__" ? null : departmentId,
     };
 
     const response = await fetch("/api/account/profile", {
@@ -137,7 +134,13 @@ export function ProfileSettingsForm({
         </div>
         <div>
           <Label>Email</Label>
-          <Input defaultValue={user.email} disabled />
+          <div className="relative">
+            <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+            <Input aria-describedby="profile-email-note" className="pl-10" defaultValue={user.email} readOnly type="email" />
+          </div>
+          <p id="profile-email-note" className="mt-1 text-[0.7rem] text-[var(--muted-foreground)]">
+            Only authorized management can change your email.
+          </p>
         </div>
         <div>
           <Label>Designation</Label>
@@ -164,22 +167,13 @@ export function ProfileSettingsForm({
       </div>
       <div className="shrink-0">
         <Label>Department</Label>
-        <Select value={departmentId} onValueChange={setDepartmentId}>
-          <SelectTrigger>
-            <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-[var(--muted-foreground)]" />
-              <SelectValue placeholder="Choose department" />
-            </div>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">No department</SelectItem>
-            {(departments ?? []).map((department) => (
-              <SelectItem key={department.id} value={department.id}>
-                {department.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="relative">
+          <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted-foreground)]" />
+          <Input aria-describedby="profile-department-note" className="pl-10" value={departmentName} readOnly />
+        </div>
+        <p id="profile-department-note" className="mt-1 text-[0.7rem] text-[var(--muted-foreground)]">
+          Only authorized management can change your department.
+        </p>
       </div>
       {/* mt-auto pins this to the bottom of the panel, so the leftover height
           sits above it as breathing room rather than below the whole card. */}
@@ -187,7 +181,7 @@ export function ProfileSettingsForm({
         <div className="min-w-0">
           <p className="text-[0.85rem] font-semibold text-[var(--foreground)]">Enterprise profile controls</p>
           <p className="text-[0.72rem] leading-4 text-[var(--muted-foreground)]">
-            Keep your identity, image, and department information current for the entire workspace. Salary setup stays inside Team panel for Team Head and Admin only.
+            Keep your profile and image current. Email and department changes require management approval. Salary setup stays inside Team panel for Team Head and Admin only.
           </p>
         </div>
         <Button className="h-9 shrink-0" disabled={loading} type="submit">

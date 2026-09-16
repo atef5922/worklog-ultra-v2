@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {toDateOnly} from '@/lib/utils';
 export const checklistSchema=z.array(z.object({id:z.string().uuid(),title:z.string().trim().min(1).max(200),done:z.boolean()})).max(50).refine(items=>new Set(items.map(i=>i.id)).size===items.length,'Checklist IDs must be unique.');
 export type ChecklistItem=z.infer<typeof checklistSchema>[number];
 export function readChecklist(value:unknown):ChecklistItem[]{const parsed=checklistSchema.safeParse(value);return parsed.success?parsed.data:[];}
@@ -27,10 +28,10 @@ export function taskInPeriod(task:{planDate:Date;updates:{reportDate:Date;status
  return date(task.planDate)>=from||updates.some(u=>date(u.reportDate)>=from)||updates[0]?.status!=='done';
 }
 export type PresenceState='Task running'|'Available'|'On break'|'In meeting'|'Checked out'|'Not checked in';
-export function presenceState(input:{checkedIn:boolean;hasAttendance:boolean;onBreak:boolean;runningTasks:number;meetingStartedAt:Date|null;sessionStartedAt:Date|null;lastSeenAt:Date|null},now:Date){
+export function presenceState(input:{checkedIn:boolean;hasAttendance:boolean;onBreak:boolean;runningTasks:number;meetingStartedAt:Date|null;lastSeenAt:Date|null},now:Date){
  const connected=!!input.lastSeenAt&&now.getTime()-input.lastSeenAt.getTime()<=120000;
- let state:PresenceState=!input.hasAttendance?'Not checked in':!input.checkedIn?'Checked out':input.onBreak?'On break':input.meetingStartedAt&&input.sessionStartedAt&&input.meetingStartedAt>=input.sessionStartedAt?'In meeting':input.runningTasks>0?'Task running':'Available';
- if(!input.hasAttendance)state='Not checked in';
+ const inMeeting=!!input.meetingStartedAt&&toDateOnly(input.meetingStartedAt)===toDateOnly(now);
+ const state:PresenceState=inMeeting?'In meeting':!input.hasAttendance?'Not checked in':!input.checkedIn?'Checked out':input.onBreak?'On break':input.runningTasks>0?'Task running':'Available';
  return {state,connected,lastSeenAt:input.lastSeenAt?.toISOString()??null};
 }
 export const planningSchema=z.object({version:z.number().int().nonnegative(),projectName:z.string().trim().max(120).nullable(),clientName:z.string().trim().max(120).nullable(),dueAt:z.string().datetime({offset:true}).nullable(),estimatedMinutes:z.number().int().min(1).max(525600).nullable(),checklist:checklistSchema,reason:z.string().trim().max(1000).optional()});

@@ -28,7 +28,6 @@ export type ProfileUpdatePayload = {
   avatarUrl: string;
   monthlySalary?: number;
   expectedDailyHours?: number;
-  departmentId: string | null;
 };
 
 export type ProfileUpdateResponse = {
@@ -53,6 +52,7 @@ export type SessionUserResponse = {
 
 export type DashboardAttendanceSnapshot = {
   revision: string;
+  cutoffExtendedUntil: string | null;
   status: "present" | "late" | "half_day" | "absent" | "remote";
   attendanceDate: string;
   note: string;

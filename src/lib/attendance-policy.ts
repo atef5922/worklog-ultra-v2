@@ -6,6 +6,7 @@ export const ATTENDANCE_INCLUDED_BREAK_MINUTES = 45;
 export const ATTENDANCE_AUTO_CUTOFF_HOUR = 19;
 export const ATTENDANCE_AUTO_CUTOFF_MINUTE = 30;
 export const ATTENDANCE_AUTO_CUTOFF_END_REASON = "auto_cutoff_19_30";
+export const ATTENDANCE_EXTENDED_CUTOFF_END_REASON = "auto_cutoff_extended";
 
 export type AttendanceInterval = {
   startedAt: Date | string;
@@ -109,7 +110,7 @@ export function calculateSegmentedAttendanceMetrics(input: SegmentedAttendanceCa
   // A safety cutoff proves only that the session was left open. Keep 7:30 PM
   // as the audited checkout, but never turn the unverified buffer into pay time.
   const countableSessions = input.workSessions.map((session) => {
-    if (session.endReason !== ATTENDANCE_AUTO_CUTOFF_END_REASON || !Number.isFinite(shiftEnd)) return session;
+    if (![ATTENDANCE_AUTO_CUTOFF_END_REASON, ATTENDANCE_EXTENDED_CUTOFF_END_REASON].includes(session.endReason ?? "") || !Number.isFinite(shiftEnd)) return session;
     const end = validDate(session.endedAt);
     return end && end.getTime() > shiftEnd ? { ...session, endedAt: new Date(shiftEnd) } : session;
   });

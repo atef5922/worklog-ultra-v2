@@ -26,6 +26,7 @@ export function attendanceRevision(record: AttendanceRecordWithSessions) {
     .map(item => [item.id, item.startedAt.toISOString(), item.endedAt?.toISOString() ?? null, item.endReason]);
   return createHash("sha256").update(JSON.stringify([
     record.id, record.updatedAt.toISOString(), record.legacyBreakMinutes, record.status,
+    record.cutoffExtendedUntil?.toISOString() ?? null,
     sessions(record.workSessions), sessions(record.breakSessions),
   ])).digest("hex");
 }
@@ -40,6 +41,7 @@ export function serializeAttendanceRecord(record: AttendanceRecordWithSessions, 
   return {
     id: record.id, revision: attendanceRevision(record), attendanceDate: toDateOnly(record.attendanceDate),
     status: record.status, note: record.note ?? "",
+    cutoffExtendedUntil: record.cutoffExtendedUntil?.toISOString() ?? null,
     checkInAt: record.checkInAt?.toISOString() ?? null, checkOutAt: record.checkOutAt?.toISOString() ?? null,
     active: Boolean(openSession), onBreak: Boolean(openSession && openBreak),
     currentSessionStartedAt: openSession?.startedAt.toISOString() ?? null,

@@ -93,12 +93,14 @@ model UserPermission {
 model UserAccessScope {
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId String @map("user_id") @db.Uuid
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation("AccessScopeOwner", fields: [userId], references: [id], onDelete: Cascade)
   scopeType String @map("scope_type")
   departmentId String? @map("department_id") @db.Uuid
   department Department? @relation(fields: [departmentId], references: [id])
   teamId String? @map("team_id") @db.Uuid
   team Team? @relation(fields: [teamId], references: [id])
+  employeeId String? @map("employee_id") @db.Uuid
+  employee User? @relation("AccessScopeEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
   grantedBy String @map("granted_by")
   @@index([userId], map: "user_access_scopes_user_idx")
   @@map("user_access_scopes")
@@ -148,7 +150,9 @@ model User {
   managementEnabled    Boolean               @default(false) @map("management_enabled")
   accessVersion        Int                   @default(0) @map("access_version")
   permissions          UserPermission[]
-  accessScopes         UserAccessScope[]
+  accessScopes         UserAccessScope[]     @relation("AccessScopeOwner")
+  individualAccessScopes UserAccessScope[]   @relation("AccessScopeEmployee")
+  attendanceDayOverrides AttendanceDayOverride[] @relation("AttendanceOverrideEmployee")
   teamId               String?               @map("team_id") @db.Uuid
   team                 Team?                 @relation("TeamMember", fields: [teamId], references: [id], onDelete: SetNull)
   ledTeams             Team[]                @relation("TeamLead")
@@ -178,6 +182,7 @@ model User {
 
 model Department {
   accessScopes UserAccessScope[]
+  attendanceDayOverrides AttendanceDayOverride[]
   teams       Team[]
   id          String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String                   @unique
@@ -189,6 +194,24 @@ model Department {
   screenshots Screenshot[]
 
   @@map("departments")
+}
+
+model AttendanceDayOverride {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  attendanceDate DateTime @map("attendance_date") @db.Date
+  subjectKey String @map("subject_key")
+  kind String
+  reason String
+  departmentId String? @map("department_id") @db.Uuid
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  employeeId String? @map("employee_id") @db.Uuid
+  employee User? @relation("AttendanceOverrideEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  createdBy String @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  @@unique([attendanceDate, subjectKey])
+  @@index([attendanceDate])
+  @@map("attendance_day_overrides")
 }
 
 model SignupVerificationCode {
@@ -385,6 +408,7 @@ model AttendanceRecord {
   id                 String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId             String                   @map("user_id") @db.Uuid
   attendanceDate     DateTime                 @map("attendance_date") @db.Date
+  cutoffExtendedUntil DateTime?               @map("cutoff_extended_until") @db.Timestamptz(6)
   status             AttendanceStatus         @default(present)
   checkInAt          DateTime?                @map("check_in_at") @db.Timestamptz(6)
   checkOutAt         DateTime?                @map("check_out_at") @db.Timestamptz(6)

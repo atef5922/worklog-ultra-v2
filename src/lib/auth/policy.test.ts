@@ -8,11 +8,11 @@ describe('individual management access',()=>{
  }
  it('employee never gets management even with forged gate and grants',()=>expect(canOpenManagement(user('employee',true))).toBe(false));
  it('employee cannot see detailed Attendance without the explicit personal grant',()=>expect(canViewAttendanceDetails(user('employee'))).toBe(false));
- it('employee can see detailed Attendance with the explicit grant but still has no management access',()=>{
+ it('legacy detailed Attendance grant cannot expose the management page to an employee',()=>{
   const employee={...user('employee'),permissions:[{permissionKey:ATTENDANCE_DETAILS_PERMISSION,isGranted:true}]};
-  expect(canViewAttendanceDetails(employee)).toBe(true);expect(canOpenManagement(employee)).toBe(false);
+  expect(canViewAttendanceDetails(employee)).toBe(false);expect(canOpenManagement(employee)).toBe(false);
  });
- it('legacy attendance.view does not unlock the personal detailed page',()=>expect(canViewAttendanceDetails({...user('employee'),permissions:[{permissionKey:'attendance.view',isGranted:true}]})).toBe(false));
+ it('attendance.view alone does not unlock the management page',()=>expect(canViewAttendanceDetails({...user('admin',true),permissions:[{permissionKey:'attendance.view',isGranted:true}]})).toBe(false));
  it('inactive or explicitly revoked accounts cannot see detailed Attendance',()=>{
   const grant={permissionKey:ATTENDANCE_DETAILS_PERMISSION,isGranted:true};
   expect(canViewAttendanceDetails({...user('employee'),isActive:false,permissions:[grant]})).toBe(false);
@@ -23,6 +23,11 @@ describe('individual management access',()=>{
  it('Super Admin full access',()=>expect(employeeScope(user('super_admin'),'employees.view')).toEqual({}));
  it('empty scope fails closed',()=>expect(employeeScope({...user('admin',true),accessScopes:[]},'employees.view')).toEqual({id:{in:[]}}));
  it('department scope stays exact',()=>expect(employeeScope(user('admin',true),'employees.view')).toEqual({OR:[{departmentId:'dept-a'}]}));
+ it('an individual employee scope grants only the selected employee',()=>expect(employeeScope({...user('admin',true),accessScopes:[{scopeType:'employees',employeeId:'employee-a'}]},'attendance.view')).toEqual({OR:[{id:'employee-a'}]}));
+ it('management attendance requires employee and attendance view grants',()=>{
+  expect(canViewAttendanceDetails(user('admin',true))).toBe(true);
+  expect(canViewAttendanceDetails({...user('admin',true),permissions:[{permissionKey:'employees.view',isGranted:true}]})).toBe(false);
+ });
  it('own team without membership never becomes all company',()=>expect(employeeScope({...user('team_head',true),accessScopes:[{scopeType:'own_team'}]},'employees.view')).toEqual({id:{in:[]}}));
  it('Team Head base workspace uses led teams only',()=>expect(ownTeamScope({...user('team_head'),ledTeams:[{id:'team-a'}],teamId:'other'})).toEqual({teamId:{in:['team-a']}}));
  it('revoking dashboard immediately disables retained write grants',()=>expect(can({...user('admin'),permissions:[{permissionKey:'attendance.correct',isGranted:true}]},'attendance.correct')).toBe(false));

@@ -19,8 +19,8 @@ export async function POST(request: NextRequest) {
   const result = await autoCloseAllAttendance();
   return apiSuccess({
     message: result.closedRecords
-      ? `Auto-closed ${result.closedRecords} attendance record(s) at 7:30 PM.`
-      : "No attendance records needed the 7:30 PM cutoff.",
+      ? `Auto-closed ${result.closedRecords} attendance record(s) at their confirmed safety cutoff.`
+      : "No attendance records needed the safety cutoff.",
     ...result,
   });
 }

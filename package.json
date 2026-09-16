@@ -9,7 +9,9 @@
     "seed": "tsx prisma/seed.ts"
   },
   "scripts": {
+    "predev": "prisma generate",
     "dev": "next dev --webpack",
+    "predev:turbopack": "prisma generate",
     "dev:turbopack": "next dev",
     "desktop:dev": "node electron/launch.cjs",
     "desktop:build": "npm run build && powershell -ExecutionPolicy Bypass -File scripts/build-desktop-runtime.ps1 && electron-builder --win",
@@ -125,6 +127,14 @@
       {
         "from": "prisma/migrations/0010_management_dashboard/migration.sql",
         "to": "management-dashboard-schema.sql"
+      },
+      {
+        "from": "prisma/migrations/0012_attendance_management/migration.sql",
+        "to": "attendance-management-schema.sql"
+      },
+      {
+        "from": "prisma/migrations/0013_attendance_cutoff_extension/migration.sql",
+        "to": "attendance-continuation-schema.sql"
       }
     ],
     "win": {

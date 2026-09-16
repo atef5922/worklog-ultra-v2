@@ -5,7 +5,7 @@ import { ATTENDANCE_STARTED_EVENT, ATTENDANCE_STOPPED_EVENT } from "./dashboard-
 
 const userId = "employee-test", now = new Date("2026-09-14T05:00:00.000Z"), fetchMock = vi.fn();
 const snapshot: DashboardAttendanceSnapshot = {
-  revision: "a".repeat(64), attendanceDate: "2026-09-14", status: "present", note: "", breakMinutes: 0, legacyBreakMinutes: 0,
+  revision: "a".repeat(64), attendanceDate: "2026-09-14", cutoffExtendedUntil: null, status: "present", note: "", breakMinutes: 0, legacyBreakMinutes: 0,
   checkInAt: now.toISOString(), checkOutAt: null, active: true, onBreak: false,
   currentSessionStartedAt: now.toISOString(), currentBreakStartedAt: null,
   workSessions: [{ id: "work-session", startedAt: now.toISOString(), endedAt: null, endReason: null }], breakSessions: [],

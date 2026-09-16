@@ -2,6 +2,7 @@ import "server-only";
 import {pauseUserTaskTimers} from "@/lib/task-timer-service";
 import { assertNoOtherAttendanceOverlap } from "@/lib/attendance-overlap";
 import { Prisma } from "@prisma/client";
+import { z } from "zod";
 import { apiError, apiSuccess } from "@/lib/api";
 import { getServerAuthContext } from "@/lib/auth/server";
 import { db } from "@/lib/db";
@@ -10,6 +11,53 @@ import { toDateOnly } from "@/lib/utils";
 import { attendanceActionSchema, attendanceClientTimeError, attendanceTransitionError } from "@/lib/attendance-action-validation";
 import { attendanceInclude, attendanceRevision, serializeAttendanceRecord, syncAttendanceSummary, type AttendanceRecordWithSessions } from "@/lib/attendance-record";
 import { attendanceAutoCutoffAt, autoCloseAttendanceForUser } from "@/lib/attendance-cutoff";
+
+const continuationSchema = z.object({
+  expectedUserId: z.string().uuid(),
+  attendanceDate: z.iso.date(),
+  expectedRevision: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+
+/** A confirmed one-hour continuation is stored on the record, never in browser state. */
+export async function continueAttendance(request: Request) {
+  try {
+    checkDashboardActionOrigin(request);
+    const { user } = await getServerAuthContext();
+    if (!user) return apiError("Authentication required.", 401);
+    const parsed = continuationSchema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success || parsed.data.expectedUserId !== user.id) return apiError("Refresh attendance and try again.", 400);
+    const now = new Date();
+    await autoCloseAttendanceForUser(user.id, now);
+    const result = await db.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id::text FROM users WHERE id=${user.id}::uuid FOR UPDATE`;
+      await freshActor(tx, user.id);
+      const record = await tx.attendanceRecord.findUnique({
+        where: { userId_attendanceDate: { userId: user.id, attendanceDate: new Date(parsed.data.attendanceDate) } },
+        include: attendanceInclude,
+      });
+      if (!record || parsed.data.attendanceDate !== toDateOnly(now) ||
+          attendanceRevision(record) !== parsed.data.expectedRevision ||
+          record.workSessions.filter(session => !session.endedAt).length !== 1) {
+        throw new AccessError("Attendance changed. Refresh and try again.", 409);
+      }
+      const cutoff = attendanceAutoCutoffAt(record.attendanceDate, record.cutoffExtendedUntil);
+      const reminderAt = new Date(cutoff.getTime() - 15 * 60_000);
+      const latest = new Date(`${parsed.data.attendanceDate}T23:30:00+06:00`);
+      if (now < reminderAt || now >= cutoff || cutoff >= latest) {
+        throw new AccessError("Continue work during the reminder window before the cutoff.", 409);
+      }
+      const next = new Date(Math.min(cutoff.getTime() + 60 * 60_000, latest.getTime()));
+      const updated = await tx.attendanceRecord.update({
+        where: { id: record.id }, data: { cutoffExtendedUntil: next }, include: attendanceInclude,
+      });
+      await audit(tx, user.id, user.id, "attendance.continued_work", record, updated,
+        `Employee confirmed continued work until ${next.toISOString()}.`);
+      return { snapshot: serializeAttendanceRecord(updated, now), serverNow: now.toISOString(),
+        message: "Work continuation confirmed. Check Out when you finish." };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted, timeout: 20_000 });
+    return apiSuccess({ ...result, userId: user.id });
+  } catch (error) { return failure(error); }
+}
 
 const AUTO_RECONCILIATION_REASON = "Automatically closed an earlier open attendance day at the next recorded office entry boundary.";
 

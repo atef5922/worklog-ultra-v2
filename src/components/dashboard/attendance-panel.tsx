@@ -22,6 +22,7 @@ type AttendanceItem = {
     id: string;
     attendanceDate: Date;
     revision: string;
+    cutoffExtendedUntil?: Date | null;
     status: "present" | "late" | "half_day" | "absent" | "remote";
     checkInAt: Date | null;
     checkOutAt: Date | null;
@@ -58,6 +59,7 @@ export function AttendancePanel({
     ? {
         attendanceDate: toDateOnly(me.attendance.attendanceDate),
         revision: me.attendance.revision,
+        cutoffExtendedUntil: me.attendance.cutoffExtendedUntil?.toISOString() ?? null,
         status: me.attendance.status,
         note: attendanceMeta.text,
         breakMinutes: me.attendance.breakMinutes,

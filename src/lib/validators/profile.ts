@@ -19,5 +19,4 @@ export const updateProfileSchema = z.object({
   avatarUrl: z.string().trim().max(255).optional().or(z.literal("")),
   expectedDailyHours: optionalNumberField(1, 24, "Expected daily hours must be at least 1."),
   monthlySalary: optionalNumberField(0, 999999999),
-  departmentId: z.string().uuid().nullable().optional().or(z.literal("")),
 });

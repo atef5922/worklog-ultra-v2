@@ -17,7 +17,7 @@ const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/dashboard/plan", icon: ClipboardList, label: "Today's Task" },
   { href: "/dashboard/report", icon: FileClock, label: "Report" },
-  { href: "/dashboard/attendance", icon: CalendarCheck2, label: "Attendance" },
+  { href: "/management/attendance", icon: CalendarCheck2, label: "Attendance" },
   { href: "/dashboard/history", icon: BriefcaseBusiness, label: "History" },
   { href: "/dashboard/assignments", icon: CheckSquare2, label: "Assignments" },
   { href: "/dashboard/notices", icon: BellRing, label: "Notices" },
@@ -58,7 +58,7 @@ function SidebarContent({
   const [navigationHeight, setNavigationHeight] = useState(0);
   const [pageAnchor, setPageAnchor] = useState({ pathname: "", index: 0 });
   const visibleItems = navItems.filter((item) => {
-    if (item.href === "/dashboard/attendance") return canViewAttendanceDetails(user);
+    if (item.href === "/management/attendance") return canViewAttendanceDetails(user);
     if (item.href === "/management") return canOpenManagement(user);
     if (item.href === "/management/reports") return can(user, "reports.view");
     if (item.href === "/management/audit") return canViewAuditLogs(user);

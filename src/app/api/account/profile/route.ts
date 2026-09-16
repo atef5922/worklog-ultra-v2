@@ -22,6 +22,12 @@ function sanitizeAvatarUrl(avatarUrl: string | null | undefined) {
 export async function POST(request: NextRequest) {
   const user = await requireUser();
   const body = await request.json();
+  if (body && typeof body === "object" && !Array.isArray(body) && Object.hasOwn(body, "email")) {
+    return apiError("Email can only be changed by authorized management.", 403);
+  }
+  if (body && typeof body === "object" && !Array.isArray(body) && Object.hasOwn(body, "departmentId")) {
+    return apiError("Department can only be changed by authorized management.", 403);
+  }
   const parsed = updateProfileSchema.safeParse(body);
 
   if (!parsed.success) {
@@ -49,7 +55,6 @@ export async function POST(request: NextRequest) {
       expectedDailyHours:
         canManageCompensation && typeof payload.expectedDailyHours === "number" ? payload.expectedDailyHours : undefined,
       monthlySalary: canManageCompensation && typeof payload.monthlySalary === "number" ? payload.monthlySalary : undefined,
-      departmentId,
     },
     include: {
       department: true,

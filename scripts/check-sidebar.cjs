@@ -107,10 +107,17 @@ async function run() {
       console.log('PASS hover, collapse, stable icons, toggle exclusion, pin and content fit');
       await context.close();
     }
-    for (const [role,count] of [['employee',7],['team_head',8],['admin',7],['moderator',7]]) {
+    for (const [role,count] of [['employee',6],['team_head',7],['admin',6],['moderator',6]]) {
       const {page,context}=await testPage(1365,636,`role=${role}&management=false`);
       const data=await checkFit(page,'.dashboard-sidebar');assert.equal(data.rows.length,count);
+      assert(!data.rows.some(row=>row.label==='Attendance'),role+' must not get management attendance without access');
       console.log('PASS role-aware menu',role);await context.close();
+    }
+    for (const role of ['employee','team_head','admin','moderator']) {
+      const {page,context}=await testPage(1365,636,`role=${role}&management=true&attendance=true`);
+      const attendance=page.locator('.dashboard-sidebar nav a[href="/management/attendance"]');
+      assert.equal(await attendance.count(),role==='employee'?0:1,role+' attendance access');
+      await context.close();
     }
     for(const [width,height] of [[390,844],[375,640],[844,390]]) {
       const {page,context}=await testPage(width,height);

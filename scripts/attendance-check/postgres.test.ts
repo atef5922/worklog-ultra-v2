@@ -80,28 +80,28 @@ describe("real PostgreSQL attendance invariants (synthetic isolated data)", () =
     expect(JSON.stringify(audit.beforeValue)).toContain('"endedAt":null');
     expect((await post(action("check_in", saved))).status).toBe(200);
   });
-  it("recovers multiple open attendance days by closing the older day at the next entry boundary", async () => {
+  it("auto-closes an older open attendance day at its own 7:30 PM cutoff", async () => {
     const old = await seed("2026-09-13", [["2026-09-13T18:00:00+06:00", null]]);
     const today = await seed("2026-09-14", [["2026-09-14T10:00:00+06:00", null]]);
     expect((await post(action("check_out", today))).status).toBe(200);
     const repaired = await reread(old.id), checkedOut = await reread(today.id);
-    expect(repaired.workSessions[0].endedAt).toEqual(d("2026-09-14T10:00:00+06:00"));
-    expect(repaired.workSessions[0].endReason).toBe("reconciled_next_entry");
+    expect(repaired.workSessions[0].endedAt).toEqual(d("2026-09-13T19:30:00+06:00"));
+    expect(repaired.workSessions[0].endReason).toBe("auto_cutoff_19_30");
     expect(checkedOut.workSessions[0].endedAt).toEqual(d("2026-09-14T13:00:00+06:00"));
-    const audit = await db.managementAuditLog.findFirstOrThrow({where:{targetId:employee.id,action:"attendance.auto_reconciled"}});
+    const audit = await db.managementAuditLog.findFirstOrThrow({where:{targetId:employee.id,action:"attendance.auto_cutoff"}});
     expect(JSON.stringify(audit.beforeValue)).toContain('"endedAt":null');
-    expect(JSON.stringify(audit.afterValue)).toContain('"endReason":"reconciled_next_entry"');
+    expect(JSON.stringify(audit.afterValue)).toContain('"endReason":"auto_cutoff_19_30"');
   });
-  it("reconciles a chain of open days without double-counting any boundary", async () => {
+  it("auto-closes each earlier open day at its own cutoff", async () => {
     const first = await seed("2026-09-12", [["2026-09-12T18:00:00+06:00", null]]);
     const second = await seed("2026-09-13", [["2026-09-13T09:30:00+06:00", null]]);
     const today = await seed("2026-09-14", [["2026-09-14T10:15:00+06:00", null]]);
     expect((await post(action("check_out", today))).status).toBe(200);
-    expect((await reread(first.id)).workSessions[0].endedAt).toEqual(d("2026-09-13T09:30:00+06:00"));
-    expect((await reread(second.id)).workSessions[0].endedAt).toEqual(d("2026-09-14T10:15:00+06:00"));
-    expect(await db.managementAuditLog.count({where:{targetId:employee.id,action:"attendance.auto_reconciled"}})).toBe(2);
+    expect((await reread(first.id)).workSessions[0].endedAt).toEqual(d("2026-09-12T19:30:00+06:00"));
+    expect((await reread(second.id)).workSessions[0].endedAt).toEqual(d("2026-09-13T19:30:00+06:00"));
+    expect(await db.managementAuditLog.count({where:{targetId:employee.id,action:"attendance.auto_cutoff"}})).toBe(2);
   });
-  it("closes an older running break at the same next-entry boundary", async () => {
+  it("closes an older running break at the same 7:30 PM cutoff", async () => {
     const old = await seed("2026-09-13", [["2026-09-13T18:00:00+06:00", null]]);
     await db.attendanceBreakSession.create({data:{
       attendanceRecordId:old.id,startedAt:d("2026-09-13T19:00:00+06:00"),clientEventId:randomUUID(),
@@ -109,15 +109,15 @@ describe("real PostgreSQL attendance invariants (synthetic isolated data)", () =
     const today = await seed("2026-09-14", [["2026-09-14T10:00:00+06:00", null]]);
     expect((await post(action("check_out", today))).status).toBe(200);
     const repaired = await reread(old.id);
-    expect(repaired.breakSessions[0].endedAt).toEqual(d("2026-09-14T10:00:00+06:00"));
-    expect(repaired.breakSessions[0].endReason).toBe("reconciled_next_entry");
-    expect(repaired.breakMinutes).toBe(900);
-    expect(repaired.workingMinutes).toBe(105);
+    expect(repaired.breakSessions[0].endedAt).toEqual(d("2026-09-13T19:30:00+06:00"));
+    expect(repaired.breakSessions[0].endReason).toBe("auto_cutoff_19_30");
+    expect(repaired.breakMinutes).toBe(0);
+    expect(repaired.workingMinutes).toBe(60);
   });
-  it("rolls back reconciliation and checkout together when its audit cannot be stored", async () => {
+  it("rolls back auto-cutoff when its audit cannot be stored", async () => {
     const old = await seed("2026-09-13", [["2026-09-13T18:00:00+06:00", null]]);
     const today = await seed("2026-09-14", [["2026-09-14T10:00:00+06:00", null]]);
-    await db.$executeRawUnsafe("CREATE FUNCTION reject_reconciliation_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'attendance.auto_reconciled' THEN RAISE EXCEPTION 'synthetic reconciliation audit failure'; END IF; RETURN NEW; END; $$");
+    await db.$executeRawUnsafe("CREATE FUNCTION reject_reconciliation_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action = 'attendance.auto_cutoff' THEN RAISE EXCEPTION 'synthetic cutoff audit failure'; END IF; RETURN NEW; END; $$");
     await db.$executeRawUnsafe("CREATE TRIGGER reject_reconciliation_audit BEFORE INSERT ON management_audit_logs FOR EACH ROW EXECUTE FUNCTION reject_reconciliation_audit()");
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {

@@ -10,6 +10,7 @@ const time = z.string().datetime({ offset: true });
 const session = z.object({ id: z.string().min(1), startedAt: time, endedAt: time.nullable(), endReason: z.string().nullable() });
 const snapshotSchema = z.object({
   revision: z.string().regex(/^[a-f0-9]{64}$/), attendanceDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  cutoffExtendedUntil: time.nullable().default(null),
   status: z.enum(["present", "late", "half_day", "absent", "remote"]), note: z.string().nullable().transform(value => value ?? ""),
   breakMinutes: z.number().int().nonnegative(), legacyBreakMinutes: z.number().int().nonnegative(),
   checkInAt: time.nullable(), checkOutAt: time.nullable(), active: z.boolean(), onBreak: z.boolean(),
@@ -44,6 +45,18 @@ async function readResponse(response: Response): Promise<AttendanceEnvelope> {
 export async function loadAttendance(currentUserId: string) {
   const result = await readResponse(await fetch("/api/dashboard/attendance", { cache: "no-store", signal: AbortSignal.timeout(15_000) }));
   if (result.userId !== currentUserId) throw new Error("Your session changed. Please sign in again.");
+  return result;
+}
+
+export async function confirmAttendanceContinuation(userId: string, current: DashboardAttendanceSnapshot) {
+  const result = await readResponse(await fetch("/api/dashboard/attendance/continue", {
+    method: "POST", signal: AbortSignal.timeout(15_000),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ expectedUserId: userId, attendanceDate: current.attendanceDate, expectedRevision: current.revision }),
+  }));
+  if (result.userId !== userId || !result.snapshot?.active || !result.snapshot.cutoffExtendedUntil) {
+    throw new Error("Work continuation could not be confirmed. Refresh and try again.");
+  }
   return result;
 }
 

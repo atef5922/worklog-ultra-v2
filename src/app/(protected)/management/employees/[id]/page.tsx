@@ -114,7 +114,7 @@ export default async function EmployeeDetailsPage({params,searchParams}:{params:
      <div><dt><UserRound size={14}/>Employee ID</dt><dd className={styles.employeeId}>{employee.id}</dd></div>
      <div><dt><CalendarDays size={14}/>Account created</dt><dd>{shortDate(employee.createdAt)}</dd></div>
     </dl>
-    {can(actor,'employees.update')&&<EmployeeProfileEditor key={employee.updatedAt.toISOString()} employee={{id:employee.id,name:employee.name,designation:employee.designation,phone:employee.phone,location:employee.location,updatedAt:employee.updatedAt.toISOString()}}/>}
+    {can(actor,'employees.update')&&<EmployeeProfileEditor key={employee.updatedAt.toISOString()} employee={{id:employee.id,name:employee.name,email:employee.email,designation:employee.designation,phone:employee.phone,location:employee.location,updatedAt:employee.updatedAt.toISOString()}}/>}
    </section>
    </div>}
 

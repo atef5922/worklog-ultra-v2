@@ -191,6 +191,18 @@ const SCHEMA_PATCHES = [
     backupFirst: true,
     file: "management-dashboard-schema.sql",
   },
+  {
+    label: "management attendance access and dated days",
+    check: "SELECT 1 WHERE EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='user_access_scopes' AND column_name='employee_id') AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='attendance_day_overrides')",
+    backupFirst: true,
+    file: "attendance-management-schema.sql",
+  },
+  {
+    label: "attendance continuation cutoff",
+    check: "SELECT 1 FROM information_schema.columns WHERE table_name='attendance_records' AND column_name='cutoff_extended_until'",
+    backupFirst: true,
+    file: "attendance-continuation-schema.sql",
+  },
 ];
 
 async function applyPendingSchemaPatches(paths, env) {

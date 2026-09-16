@@ -3,6 +3,7 @@ import { TaskTimerProvider } from "@/components/dashboard/task-timer-provider";
 import { DashboardHeader } from "@/components/dashboard/header";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { TaskScreenshotMonitor } from "@/components/dashboard/task-screenshot-monitor";
+import { AttendanceCutoffReminder } from "@/components/dashboard/attendance-cutoff-reminder";
 import { DashboardMotionShell } from "@/components/motion/dashboard-motion-shell";
 import { requireUser } from "@/lib/auth/server";
 import { AccessRefresh } from "@/components/management/access-refresh";
@@ -71,6 +72,7 @@ export default async function ProtectedLayout({
             <AccessRefresh version={user.accessVersion} />
             <DashboardMotionShell>{children}</DashboardMotionShell>
             <TaskScreenshotMonitor currentUserId={user.id} />
+            <AttendanceCutoffReminder userId={user.id} initialAttendance={headerUser.attendanceSnapshot} />
             </TaskTimerProvider>
           </main>
         </div>

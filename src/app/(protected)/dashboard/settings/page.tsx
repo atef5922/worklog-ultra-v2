@@ -5,13 +5,11 @@ import { ProfileSettingsForm } from "@/components/settings/profile-settings-form
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { requireUser } from "@/lib/auth/server";
 import { toProfileSettingsUser } from "@/lib/contracts/user";
-import { getDepartments } from "@/lib/worklog";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const user = await requireUser();
-  const departments = await getDepartments();
   const profileUser = toProfileSettingsUser(user);
   const resolvedAvatarUrl = profileUser.avatarUrl || null;
 
@@ -81,7 +79,7 @@ export default async function SettingsPage() {
             These details appear across the workspace. Changes save immediately after you submit.
           </p>
           <div className="mt-2 flex min-h-0 flex-1 flex-col">
-            <ProfileSettingsForm departments={departments} user={profileUser} />
+            <ProfileSettingsForm departmentName={user.department?.name ?? "No department assigned"} user={profileUser} />
           </div>
         </section>
       </div>

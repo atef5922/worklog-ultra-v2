@@ -22,6 +22,7 @@ function session() { return { id: sessionId, attendanceRecordId: recordId, start
   endedAt: d("2026-09-13T19:00:00+06:00") as Date | null, endReason: "manual", clientEventId: "original-in",
   createdAt: d("2026-09-13"), updatedAt: d("2026-09-13") }; }
 const initial = () => ({ id: recordId, userId: employee, attendanceDate: d("2026-09-13"), status: "present" as const,
+  cutoffExtendedUntil: null as Date | null,
   note: null as string | null, checkInAt: d("2026-09-13T18:00:00+06:00"), checkOutAt: d("2026-09-13T19:00:00+06:00") as Date | null,
   legacyBreakMinutes: 0, breakMinutes: 0, workingMinutes: 60, createdAt: d("2026-09-13"), updatedAt: d("2026-09-13T19:00:00+06:00"),
   workSessions: [session()], breakSessions: [] as ReturnType<typeof session>[] });

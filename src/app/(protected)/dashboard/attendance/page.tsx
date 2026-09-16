@@ -1,12 +1,8 @@
-import { AttendancePanel } from "@/components/dashboard/attendance-panel";
-import { requireAttendancePageAccess } from "@/lib/auth/server";
-import { getAttendanceData } from "@/lib/worklog";
+import { redirect } from "next/navigation";
+import { requireUser } from "@/lib/auth/server";
+import { canViewAttendanceDetails } from "@/lib/auth/policy";
 
-export const dynamic = "force-dynamic";
-
-export default async function AttendancePage() {
-  const user = await requireAttendancePageAccess();
-  const items = await getAttendanceData(user);
-
-  return <AttendancePanel currentUserId={user.id} items={items ?? []} userRole={user.role} />;
+export default async function OldAttendancePage() {
+  const user = await requireUser();
+  redirect(canViewAttendanceDetails(user) ? "/management/attendance" : "/dashboard");
 }

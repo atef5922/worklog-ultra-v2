@@ -9,8 +9,8 @@ const mocks = vi.hoisted(() => {
 });
 vi.mock("@/lib/db", () => ({ db: mocks.db }));
 vi.mock("@/lib/auth/server", () => ({ getServerAuthContext: mocks.auth }));
-import { getAttendance, postAttendance } from "./attendance-service";
-import { attendanceRevision, type AttendanceRecordWithSessions } from "./attendance-record";
+import { continueAttendance, getAttendance, postAttendance } from "./attendance-service";
+import { attendanceRevision, measureAttendanceRecord, type AttendanceRecordWithSessions } from "./attendance-record";
 const userId = "11111111-1111-4111-8111-111111111111";
 const actor = { id: userId, role: "employee", isActive: true };
 const day = "2026-09-14";
@@ -18,6 +18,7 @@ let rows: AttendanceRecordWithSessions[], serial = 0;
 const id = () => `22222222-2222-4222-8222-${String(++serial).padStart(12, "0")}`;
 function record(date = day): AttendanceRecordWithSessions {
   return { id: id(), userId, attendanceDate: new Date(date), status: "present", note: null,
+    cutoffExtendedUntil: null,
     checkInAt: null, checkOutAt: null, breakMinutes: 0, legacyBreakMinutes: 0, workingMinutes: 0,
     createdAt: new Date(), updatedAt: new Date(), workSessions: [], breakSessions: [] };
 }
@@ -31,6 +32,12 @@ function request(action: string, extra: Record<string, unknown> = {}) {
   return new Request("http://localhost:3000/api/dashboard/attendance", { method: "POST",
     headers: { origin: "http://localhost:3000", "Content-Type": "application/json" },
     body: JSON.stringify({ action, expectedUserId: userId, attendanceDate, eventId: id(), expectedRevision: current ? attendanceRevision(current) : null, ...extra }) });
+}
+function continuationRequest(expectedRevision = attendanceRevision(rows[0])) {
+  return new Request("http://localhost:3000/api/dashboard/attendance/continue", {
+    method: "POST", headers: { origin: "http://localhost:3000", "Content-Type": "application/json" },
+    body: JSON.stringify({ expectedUserId: userId, attendanceDate: day, expectedRevision }),
+  });
 }
 beforeEach(() => {
   vi.clearAllMocks(); serial = 0; rows = []; vi.useFakeTimers(); vi.setSystemTime(new Date("2026-09-14T10:00:37+06:00"));
@@ -124,6 +131,57 @@ describe("attendance API", () => {
     expect((await (await getAttendance()).json()).snapshot).toMatchObject({ active: true });
     expect(rows[0].workSessions[0].endedAt).toBeNull();
     expect(mocks.tx.managementAuditLog.create).not.toHaveBeenCalled();
+  });
+  it("confirms continuation only in the reminder window and counts a real later Out", async () => {
+    await postAttendance(request("check_in"));
+    vi.setSystemTime(new Date("2026-09-14T19:14:59+06:00"));
+    expect((await continueAttendance(continuationRequest())).status).toBe(409);
+    vi.setSystemTime(new Date("2026-09-14T19:15:00+06:00"));
+    const staleRevision = attendanceRevision(rows[0]);
+    expect((await continueAttendance(continuationRequest(staleRevision))).status).toBe(200);
+    expect(rows[0].cutoffExtendedUntil).toEqual(new Date("2026-09-14T20:30:00+06:00"));
+    expect((await continueAttendance(continuationRequest(staleRevision))).status).toBe(409);
+    vi.setSystemTime(new Date("2026-09-14T19:30:00+06:00"));
+    expect((await (await getAttendance()).json()).snapshot).toMatchObject({ active: true });
+    vi.setSystemTime(new Date("2026-09-14T20:05:00+06:00"));
+    expect((await postAttendance(request("check_out"))).status).toBe(200);
+    expect(rows[0].workSessions[0].endedAt).toEqual(new Date("2026-09-14T20:05:00+06:00"));
+    expect(measureAttendanceRecord(rows[0]).overtimeMinutes).toBe(65);
+  });
+  it("auto-closes an extended but forgotten Out at its confirmed deadline without credited overtime", async () => {
+    await postAttendance(request("check_in"));
+    vi.setSystemTime(new Date("2026-09-14T19:15:00+06:00"));
+    expect((await continueAttendance(continuationRequest())).status).toBe(200);
+    vi.setSystemTime(new Date("2026-09-14T20:30:00+06:00"));
+    await getAttendance();
+    expect(rows[0].workSessions[0]).toMatchObject({
+      endedAt: new Date("2026-09-14T20:30:00+06:00"), endReason: "auto_cutoff_extended",
+    });
+    expect(measureAttendanceRecord(rows[0]).overtimeMinutes).toBe(0);
+  });
+  it("can extend again only in the next reminder window and still auto-closes at the new deadline", async () => {
+    await postAttendance(request("check_in"));
+    vi.setSystemTime(new Date("2026-09-14T19:15:00+06:00"));
+    expect((await continueAttendance(continuationRequest())).status).toBe(200);
+    vi.setSystemTime(new Date("2026-09-14T20:14:59+06:00"));
+    expect((await continueAttendance(continuationRequest(attendanceRevision(rows[0])))).status).toBe(409);
+    vi.setSystemTime(new Date("2026-09-14T20:15:00+06:00"));
+    expect((await continueAttendance(continuationRequest(attendanceRevision(rows[0])))).status).toBe(200);
+    expect(rows[0].cutoffExtendedUntil).toEqual(new Date("2026-09-14T21:30:00+06:00"));
+    vi.setSystemTime(new Date("2026-09-14T20:30:00+06:00"));
+    expect((await (await getAttendance()).json()).snapshot).toMatchObject({ active: true });
+    vi.setSystemTime(new Date("2026-09-14T21:30:00+06:00"));
+    await getAttendance();
+    expect(rows[0].workSessions[0]).toMatchObject({
+      endedAt: new Date("2026-09-14T21:30:00+06:00"), endReason: "auto_cutoff_extended",
+    });
+    expect(measureAttendanceRecord(rows[0]).overtimeMinutes).toBe(0);
+  });
+  it("does not permit a continuation after the unextended deadline", async () => {
+    await postAttendance(request("check_in"));
+    vi.setSystemTime(new Date("2026-09-14T19:30:00+06:00"));
+    expect((await continueAttendance(continuationRequest(attendanceRevision(rows[0])))).status).toBe(409);
+    expect(rows[0].workSessions[0].endedAt).toEqual(new Date("2026-09-14T19:30:00+06:00"));
   });
   it("rejects a new Check In at or after the hard cutoff", async () => {
     vi.setSystemTime(new Date("2026-09-14T19:30:00+06:00"));
