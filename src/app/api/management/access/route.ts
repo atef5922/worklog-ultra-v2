@@ -7,7 +7,7 @@ import { actorInclude, authenticate, freshActor, fail, checkDashboardActionOrigi
 
 const schema=z.object({userId:z.string().uuid(),role:z.enum(APP_ROLES),isActive:z.boolean(),managementEnabled:z.boolean(),
   departmentId:z.string().uuid().nullable(),teamId:z.string().uuid().nullable(),version:z.number().int().nonnegative(),
-  permissions:z.array(z.enum(PERMISSIONS)).max(PERMISSIONS.length),scopeType:z.enum(SCOPE_TYPES),scopeIds:z.array(z.string().uuid()).max(200),reason:z.string().trim().min(3).max(500)});
+  permissions:z.array(z.enum(PERMISSIONS)).max(PERMISSIONS.length),scopeType:z.enum(SCOPE_TYPES),scopeIds:z.array(z.string().uuid()).max(200)});
 export async function GET(request: Request) {
  try {
   await authenticate("super_admin");
@@ -62,7 +62,7 @@ export async function PUT(request: Request) {
     managementEnabled:input.role==='super_admin'||input.managementEnabled,accessVersion:{increment:1},
     permissions:{create:[...new Set(input.permissions)].map(permissionKey=>({permissionKey,isGranted:true,grantedBy:actor.id}))},accessScopes:{create:scopes}},
     select:{id:true,role:true,isActive:true,managementEnabled:true,accessVersion:true,departmentId:true,teamId:true,permissions:true,accessScopes:true}});
-   await audit(tx,actor.id,target.id,"access.updated",{role:target.role,isActive:target.isActive,managementEnabled:target.managementEnabled,permissions:target.permissions,scopes:target.accessScopes,departmentId:target.departmentId,teamId:target.teamId},updated,input.reason);
+   await audit(tx,actor.id,target.id,"access.updated",{role:target.role,isActive:target.isActive,managementEnabled:target.managementEnabled,permissions:target.permissions,scopes:target.accessScopes,departmentId:target.departmentId,teamId:target.teamId},updated);
    if(!input.isActive) await tx.userSession.updateMany({where:{userId:target.id,revokedAt:null},data:{revokedAt:new Date()}});
    return updated;
   },{isolationLevel:"Serializable"});

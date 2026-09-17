@@ -32,9 +32,14 @@ const ALLOWED_ATTACHMENT_TYPES = new Set([
 
 const MAX_ATTACHMENT_SIZE = 8 * 1024 * 1024;
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const user = await requireUser();
-  const { contacts, inbox } = await getWorkspaceMessages(user.id);
+  const partnerId = request.nextUrl.searchParams.get("partnerId");
+  const parsedPartnerId = partnerId ? z.string().uuid().safeParse(partnerId) : null;
+  if (partnerId && !parsedPartnerId?.success) {
+    return apiError("Invalid conversation.", 400);
+  }
+  const { contacts, inbox } = await getWorkspaceMessages(user.id, parsedPartnerId?.data);
 
   return apiSuccess({
     contacts: contacts ?? [],

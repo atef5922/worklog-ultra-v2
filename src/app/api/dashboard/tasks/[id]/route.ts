@@ -93,6 +93,7 @@ export async function POST(
       taskDescription: true,
       priority: true,
       assignedBy: true,
+      commentThreadId: true,
       updates: {
         orderBy: { reportDate: "desc" },
         take: 1,
@@ -465,6 +466,7 @@ export async function POST(
       },
       select: {
         id: true,
+        commentThreadId: true,
         updates: {
           orderBy: { reportDate: "desc" },
           take: 1,
@@ -486,6 +488,7 @@ export async function POST(
           taskDescription: continuationNote || null,
           priority: task.priority,
           assignedBy: task.assignedBy,
+          commentThreadId: existingTodayTask.commentThreadId ?? task.commentThreadId ?? task.id,
         },
       });
 
@@ -514,6 +517,7 @@ export async function POST(
           taskDescription: continuationNote || null,
           priority: task.priority,
           assignedBy: task.assignedBy,
+          commentThreadId: task.commentThreadId ?? task.id,
         },
         select: { id: true },
       });
@@ -550,7 +554,7 @@ export async function POST(
       planDate: nextPlanDate,
       taskTitle: task.taskTitle,
     },
-    select: { id: true },
+    select: { id: true, commentThreadId: true },
   });
 
   if (action === "clear_continuation") {
@@ -571,6 +575,7 @@ export async function POST(
         taskDescription: continuationNote || null,
         priority: task.priority,
         assignedBy: task.assignedBy,
+        commentThreadId: existingCarryForward.commentThreadId ?? task.commentThreadId ?? task.id,
       },
     });
 
@@ -586,6 +591,7 @@ export async function POST(
       taskDescription: continuationNote || null,
       priority: task.priority,
       assignedBy: task.assignedBy,
+      commentThreadId: task.commentThreadId ?? task.id,
     },
   });
 

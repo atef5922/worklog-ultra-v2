@@ -176,6 +176,8 @@ model User {
   screenshots          Screenshot[]
   screenshotAccessLogs ScreenshotAccessLog[]
   taskActivityEvents   TaskActivityEvent[]   @relation("TaskActivityActor")
+  taskComments         TaskComment[]
+  taskCommentReads      TaskCommentRead[]
 
   @@map("users")
 }
@@ -242,6 +244,7 @@ model DailyTask {
   checklist Json @default("[]")
   planningVersion Int @default(0) @map("planning_version")
   timelineEntries TaskTimelineEntry[]
+  commentThreadId String? @map("comment_thread_id") @db.Uuid
   id              String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId          String              @map("user_id") @db.Uuid
   departmentId    String              @map("department_id") @db.Uuid
@@ -458,6 +461,28 @@ model AttendanceBreakSession {
   @@unique([attendanceRecordId, clientEventId])
   @@index([attendanceRecordId, startedAt])
   @@map("attendance_break_sessions")
+}
+
+model TaskComment {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  threadId  String   @map("thread_id") @db.Uuid
+  authorId  String   @map("author_id") @db.Uuid
+  body      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt, id])
+  @@map("task_comments")
+}
+
+model TaskCommentRead {
+  threadId   String   @map("thread_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  lastReadAt DateTime @map("last_read_at") @db.Timestamptz(6)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([threadId, userId])
+  @@map("task_comment_reads")
 }
 
 model WorkspaceMessage {

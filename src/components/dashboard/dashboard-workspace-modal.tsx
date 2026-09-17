@@ -71,8 +71,8 @@ export function DashboardWorkspaceModal({
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-[rgba(15,23,42,0.38)] backdrop-blur-sm" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-1.5rem)] w-[min(960px,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[24px] border border-[var(--panel-border)] bg-[var(--panel)] shadow-[0_28px_70px_rgba(15,23,42,0.24)] outline-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex items-center justify-between gap-4 border-b border-[var(--panel-border)] px-4 py-3">
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-1.5rem)] w-[min(760px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[24px] border border-[var(--panel-border)] bg-[var(--panel)] shadow-[0_28px_70px_rgba(15,23,42,0.24)] outline-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex items-center justify-between gap-4 border-b border-[var(--panel-border)] px-5 py-3.5">
             <div className="flex min-w-0 items-center gap-2.5">
               <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#4f5ef7]/10 text-[#4f5ef7]">
                 <ClipboardList className="h-4 w-4" />
@@ -97,7 +97,7 @@ export function DashboardWorkspaceModal({
             </Dialog.Close>
           </div>
 
-          <div className="px-4 py-3">
+          <div className="px-5 py-4">
               <PlanForm
                 key={planResetToken}
                 assignableUsers={assignableUsers}

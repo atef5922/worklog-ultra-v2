@@ -479,7 +479,7 @@ export function PlanForm({
               key={task.clientId}
               className={cn(
                 "rounded-xl border border-[var(--panel-border)] bg-[var(--panel-muted)] p-2.5 transition-colors hover:border-[#4f5ef7]/30",
-                compact && "p-2",
+                compact && "p-3",
               )}
             >
               <div className={cn("mb-2 flex items-center justify-between gap-3", compact && "mb-1.5")}>
@@ -505,11 +505,9 @@ export function PlanForm({
                 ) : null}
               </div>
 
-              {/* Three across on a wide screen: title, department and priority
-                  used to wrap onto two rows and cost every task card a row of
-                  height it did not need. */}
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                <div>
+              {/* Compact modal gives the title a full row; the wider page keeps three fields across. */}
+              <div className={cn("grid gap-2 sm:grid-cols-2", !compact && "xl:grid-cols-3")}>
+                <div className={cn(compact && "sm:col-span-2")}>
                   <Label className={cn(compact && "mb-1 text-xs")}>Task Title</Label>
                   <Input
                     className={cn(compact && "h-9 text-xs")}

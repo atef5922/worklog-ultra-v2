@@ -1,4 +1,5 @@
 import { formatDateInDhaka } from "@/lib/utils";
+import { TaskCommentsButton } from "@/components/dashboard/task-comments";
 import {personalOrScopedTasks, type AccessActor} from '@/lib/auth/policy';
 import {db} from '@/lib/db';
 import {taskActivityDisplay} from '@/lib/management/task-activity-display';
@@ -39,6 +40,10 @@ export async function TaskRecord({actor, taskId}: {actor: AccessActor; taskId: s
   });
 
   if (!stored) notFound();
+  const canComment = stored.userId === actor.id || Boolean(await db.dailyTask.findFirst({
+    where: { id: taskId, ...personalOrScopedTasks(actor, "tasks.view") },
+    select: { id: true },
+  }));
 
   const userIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const activityActorIds = [
@@ -106,8 +111,8 @@ export async function TaskRecord({actor, taskId}: {actor: AccessActor; taskId: s
   return (
     <div className={styles.page} data-fit-viewport>
       <section className={card + ' ' + styles.summaryCard}>
-        <p className="text-xs font-medium uppercase tracking-wide text-indigo-500">Read-only task record</p>
-        <h1 className="mt-2 text-2xl font-semibold">{task.taskTitle}</h1>
+        <p className="text-xs font-medium uppercase tracking-wide text-indigo-500">Task record</p>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-semibold">{task.taskTitle}</h1>{canComment && <TaskCommentsButton taskId={task.id} taskTitle={task.taskTitle} />}</div>
         <p className="mt-3 whitespace-pre-wrap text-sm text-[var(--muted-foreground)]">
           {getReadableTaskDescription(task.taskDescription)}
         </p>

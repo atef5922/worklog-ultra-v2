@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import { ThemeScript } from "@/components/theme/theme-script";
 import { Toaster } from "sonner";
+import type { CSSProperties } from "react";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -35,7 +36,16 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <ThemeScript />
         {children}
-        <Toaster position="top-right" richColors />
+        <Toaster
+          position="bottom-right"
+          richColors
+          gap={8}
+          visibleToasts={3}
+          offset={16}
+          mobileOffset={12}
+          style={{ "--width": "min(300px, calc(100vw - 24px))" } as CSSProperties}
+          toastOptions={{ className: "worklog-toast" }}
+        />
       </body>
     </html>
   );

@@ -164,6 +164,7 @@ export async function finalizeMissedTasksForUser(userId: string) {
         taskDescription: true,
         priority: true,
         assignedBy: true,
+        commentThreadId: true,
       },
     }),
   ]);
@@ -201,6 +202,7 @@ export async function finalizeMissedTasksForUser(userId: string) {
           taskDescription: continuationNote || null,
           priority: task.priority,
           assignedBy: task.assignedBy,
+          commentThreadId: existingTodayTask.commentThreadId ?? task.commentThreadId ?? task.id,
         },
       });
     } else {
@@ -213,6 +215,7 @@ export async function finalizeMissedTasksForUser(userId: string) {
           taskDescription: continuationNote || null,
           priority: task.priority,
           assignedBy: task.assignedBy,
+          commentThreadId: task.commentThreadId ?? task.id,
         },
         select: {
           id: true,
@@ -220,6 +223,7 @@ export async function finalizeMissedTasksForUser(userId: string) {
           taskDescription: true,
           priority: true,
           assignedBy: true,
+          commentThreadId: true,
         },
       });
 
@@ -1247,16 +1251,17 @@ export async function getApprovalNotificationCount(user: {
   });
 }
 
-export async function getWorkspaceMessages(userId: string) {
-  await db.workspaceMessage.updateMany({
-    where: {
-      recipientId: userId,
-      readAt: null,
-    },
-    data: {
-      readAt: new Date(),
-    },
-  });
+export async function getWorkspaceMessages(userId: string, viewedPartnerId?: string) {
+  if (viewedPartnerId) {
+    await db.workspaceMessage.updateMany({
+      where: {
+        recipientId: userId,
+        senderId: viewedPartnerId,
+        readAt: null,
+      },
+      data: { readAt: new Date() },
+    });
+  }
 
   const [contacts, inbox] = await Promise.all([
     db.user.findMany({

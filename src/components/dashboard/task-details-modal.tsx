@@ -3,6 +3,7 @@
 import { formatDateTimeInDhaka } from "@/lib/utils";
 import { formatDateInDhaka } from "@/lib/utils";
 import * as Dialog from "@radix-ui/react-dialog";
+import { TaskCommentsButton } from "@/components/dashboard/task-comments";
 import { Building2, CalendarDays, CheckCircle2, Flag, PlayCircle, RotateCcw, Square, Timer, UserRoundCheck, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { ContinuationOverview } from "@/lib/task-continuation";
@@ -242,6 +243,7 @@ export function TaskDetailsModal({
                   >
                     {task.statusLabel}
                   </span>
+                  <TaskCommentsButton taskId={task.id} taskTitle={task.taskTitle} />
                   {task.isFollowUp ? (
                     <span className="inline-flex items-center rounded-md bg-white border border-slate-200 px-2.5 py-1 text-[0.6rem] font-semibold uppercase tracking-[0.08em] text-slate-700">
                       Follow-up

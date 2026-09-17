@@ -1776,3 +1776,19 @@ html[data-theme="dark"] .task-btn-danger:hover:not(:disabled) {
   background: #111827;
   border-color: #4b5563;
 }
+
+/* Compact notifications stay clear of the dashboard header and actions. */
+.worklog-toast[data-sonner-toast][data-styled="true"] {
+  padding: 10px 12px;
+  border-radius: 10px;
+  box-shadow: 0 8px 22px rgba(18, 35, 65, 0.14);
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 12px;
+  line-height: 1.35;
+  gap: 8px;
+}
+.worklog-toast[data-sonner-toast][data-styled="true"] [data-icon] {
+  width: 16px;
+  height: 16px;
+  margin-right: 0;
+}

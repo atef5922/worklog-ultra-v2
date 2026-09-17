@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
 
   const description = embedAssignmentAttachmentMeta(parsed.data.note ?? "", uploadedAttachments);
 
-  const createdResponse = await createWorkPlan(new Request(request.url,{method:'POST',headers:{'Content-Type':'application/json',...(request.headers.get('origin')?{origin:request.headers.get('origin')!}:{})},body:JSON.stringify({planDate:toDateOnly(planDate),tasks:[{assigneeId:parsed.data.assigneeId,departmentId:parsed.data.departmentId,taskTitle:parsed.data.taskTitle.trim(),taskDescription:description||'',priority:parsed.data.priority}]})}));
+  const createdResponse = await createWorkPlan(new Request(request.url,{method:'POST',headers:{'Content-Type':'application/json',...(request.headers.get('origin')?{origin:request.headers.get('origin')!}:{}),...(request.headers.get('host')?{host:request.headers.get('host')!}:{})},body:JSON.stringify({planDate:toDateOnly(planDate),tasks:[{assigneeId:parsed.data.assigneeId,departmentId:parsed.data.departmentId,taskTitle:parsed.data.taskTitle.trim(),taskDescription:description||'',priority:parsed.data.priority}]})}));
   if(!createdResponse.ok)return createdResponse;
   const createdTask = (await createdResponse.json()).tasks[0];
 

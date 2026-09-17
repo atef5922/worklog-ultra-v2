@@ -29,27 +29,25 @@ export async function lockTransaction(tx: Prisma.TransactionClient, key: string)
 }
 export function checkOrigin(request: Request) {
   const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) throw new AccessError("Cross-origin request denied.");
+  if (!origin) return;
+  const requestUrl = new URL(request.url);
+  if (origin === requestUrl.origin) return;
+
+  // Next may expose localhost as request.url for a browser request made through
+  // the machine's LAN address. Accept only the browser origin matching the
+  // actual Host header and protocol; a different site remains forbidden.
+  try {
+    const originUrl = new URL(origin);
+    const host = request.headers.get("host")?.trim().toLowerCase();
+    const internalHost = ["localhost", "127.0.0.1", "[::1]"].includes(requestUrl.hostname.toLowerCase());
+    if (internalHost && host && originUrl.protocol === requestUrl.protocol && originUrl.host.toLowerCase() === host) return;
+  } catch {
+    // Invalid origins are rejected below.
+  }
+  throw new AccessError("Cross-origin request denied.");
 }
 export function checkDashboardActionOrigin(request: Request) {
-  try {
-    checkOrigin(request);
-    return;
-  } catch (error) {
-    const origin = request.headers.get("origin");
-    const host = request.headers.get("host")?.trim().toLowerCase();
-    try {
-      const requestProtocol = new URL(request.url).protocol;
-      const originUrl = origin ? new URL(origin) : null;
-      // Direct LAN access can leave request.url on Next's internal localhost
-      // authority. The browser's Origin must still exactly match the actual
-      // request Host and protocol; arbitrary external origins remain denied.
-      if (originUrl && host && originUrl.protocol === requestProtocol && originUrl.host.toLowerCase() === host) return;
-    } catch {
-      // Preserve the original origin failure below.
-    }
-    throw error;
-  }
+  checkOrigin(request);
 }
 export function fail(error: unknown) {
   if (error instanceof AccessError) return NextResponse.json({message:error.message},{status:error.status});

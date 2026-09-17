@@ -8,14 +8,15 @@ const { chromium } = require('playwright-core');
 async function run() {
   const root = path.resolve(__dirname, '..');
   const bundle = await esbuild.build({ entryPoints: [path.join(__dirname, 'task-workflow-check/entry.tsx')], bundle: true, write: false,
-    platform: 'browser', format: 'iife', jsx: 'automatic', define: { 'process.env.NODE_ENV': '"development"' },
+    platform: 'browser', format: 'iife', jsx: 'automatic', outdir: path.join(root, '.next/task-workflow-check'), loader: {'.module.css': 'local-css'}, define: { 'process.env.NODE_ENV': '"development"' },
     alias: { 'next/link': path.join(__dirname, 'sidebar-check/link.tsx'), 'next/navigation': path.join(__dirname, 'task-workflow-check/navigation.ts') } });
   const html = await (await fetch('http://localhost:3000/auth/login')).text();
   const css = [...html.matchAll(/<link[^>]+rel="stylesheet"[^>]*>/g)].map(m => /href="([^"]+)"/.exec(m[0])?.[1]).filter(Boolean);
   const server = http.createServer((req, res) => {
-    if (req.url === '/fixture.js') { res.setHeader('Content-Type', 'text/javascript'); return res.end(bundle.outputFiles[0].text); }
+    if (req.url === '/fixture.js') { res.setHeader('Content-Type', 'text/javascript'); return res.end(bundle.outputFiles.find(file => file.path.endsWith('.js')).text); }
+    if (req.url === '/fixture.css') { res.setHeader('Content-Type', 'text/css'); return res.end(bundle.outputFiles.find(file => file.path.endsWith('.css')).text); }
     res.setHeader('Content-Type', 'text/html');
-    res.end(`<!doctype html><html><head>${css.map(h => `<link rel="stylesheet" href="http://localhost:3000${h}">`).join('')}<style>body{padding:24px;background:#f1f5fb}button{cursor:pointer}</style></head><body><div id="root"></div><script src="/fixture.js"></script></body></html>`);
+    res.end(`<!doctype html><html><head>${css.map(h => `<link rel="stylesheet" href="http://localhost:3000${h}">`).join('')}<link rel="stylesheet" href="/fixture.css"><style>body{padding:24px;background:#f1f5fb}button{cursor:pointer}</style></head><body><div id="root"></div><script src="/fixture.js"></script></body></html>`);
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const browser = await chromium.launch({ channel: 'msedge', headless: true });
@@ -24,6 +25,26 @@ async function run() {
   const snapshot = page => page.evaluate(() => window.phaseOneTest.timer);
   try {
     await require('./task-workflow-check/stale-dialogs.cjs')({browser, base, errors});
+
+    {
+      const page = await browser.newPage({viewport: {width: 1365, height: 900}});
+      page.on('pageerror', error => errors.push(error.message));
+      await page.goto(base + '/?view=dashboard');
+      await page.getByRole('columnheader', {name: 'Comments'}).waitFor();
+      const taskRow = page.getByRole('row').filter({hasText: 'Synthetic workflow task'});
+      const commentButton = taskRow.getByRole('button', {name: 'Comments for Synthetic workflow task, 1 unread'});
+      await commentButton.waitFor();
+      await commentButton.click();
+      const chat = page.getByRole('dialog', {name: 'Task comments'});
+      await chat.getByText('Please review this task.').waitFor();
+      await chat.getByLabel('Write a task comment').fill('I reviewed it.');
+      await chat.getByRole('button', {name: 'Send comment'}).click();
+      await chat.getByText('I reviewed it.').waitFor();
+      await chat.getByRole('button', {name: 'Close comments'}).click();
+      assert.equal(await chat.isVisible(), false);
+      console.log('PASS employee task-row comments, unread badge, and reply');
+      await page.close();
+    }
 
     {
       const context = await browser.newContext({viewport: {width: 1365, height: 900}});
@@ -127,8 +148,8 @@ async function run() {
         const saved = await snapshot(page);
         const display = iso => new Intl.DateTimeFormat('en-BD', {hour:'numeric',minute:'2-digit',hour12:true,timeZone:'Asia/Dhaka'}).format(new Date(iso));
         const cells = page.getByRole('row').last().getByRole('cell');
-        assert.equal((await cells.nth(8).innerText()).trim(), display(saved.actualEnd), 'Saved completion time must be visible');
-        assert.equal((await cells.nth(7).innerText()).trim(), saved.actualStart ? display(saved.actualStart) : '--:--');
+        assert.equal((await cells.nth(9).innerText()).trim(), display(saved.actualEnd), 'Saved completion time must be visible');
+        assert.equal((await cells.nth(8).innerText()).trim(), saved.actualStart ? display(saved.actualStart) : '--:--');
         await page.getByRole('button', {name: 'Reopen', exact: true}).click();
         await page.getByRole('dialog').getByText(display(saved.actualEnd), {exact: true}).waitFor();
         if (mode === 'zero-time') {

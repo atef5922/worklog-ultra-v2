@@ -35,6 +35,7 @@ import {
   TaskCompleteModal,
   type TaskCompletionPayload,
 } from "@/components/dashboard/task-complete-modal";
+import { TaskCommentsButton } from "@/components/dashboard/task-comments";
 import {
   TaskDetailsModal,
   type TaskDetails,
@@ -862,23 +863,25 @@ export function DashboardWorkPlanSection({
           </div>
 
           <div className="dashboard-workplan-table-scroll min-h-0 min-w-0 flex-1 overflow-auto overscroll-contain [scrollbar-gutter:stable]">
-            <table className={`w-full table-fixed border-separate border-spacing-0 ${managementView ? "min-w-[78rem]" : "min-w-[69.3rem]"}`}>
+            <table className={`w-full table-fixed border-separate border-spacing-0 ${managementView ? "min-w-[84rem]" : "min-w-[75.25rem]"}`}>
               <colgroup>
-                <col className="w-[3rem]" />
-                <col className="w-[11.5rem]" />
-                <col className="w-[15rem]" />
+                <col className="w-[2.75rem]" />
+                <col className="w-[16.5rem]" />
+                <col className="w-[4.5rem]" />
+                <col className="w-[14rem]" />
                 {managementView ? <col className="w-[8.7rem]" /> : null}
+                <col className="w-[5.5rem]" />
+                <col className="w-[6.75rem]" />
+                <col className="w-[8rem]" />
+                <col className="w-[5.25rem]" />
                 <col className="w-[6rem]" />
-                <col className="w-[7.2rem]" />
-                <col className="w-[8.3rem]" />
-                <col className="w-[5.7rem]" />
-                <col className="w-[6.4rem]" />
-                <col className="w-[6.2rem]" />
+                <col className="w-[6rem]" />
               </colgroup>
               <thead>
                 <tr>
                   <th className={TABLE_HEAD_CLASS} scope="col">SL</th>
                   <th className={TABLE_HEAD_CLASS} scope="col">Title</th>
+                  <th className={`${TABLE_HEAD_CLASS} text-center`} scope="col">Comments</th>
                   <th className={TABLE_HEAD_CLASS} scope="col">Description</th>
                   {managementView ? <th className={TABLE_HEAD_CLASS} scope="col">Source / Date</th> : null}
                   <th className={TABLE_HEAD_CLASS} scope="col">Priority</th>
@@ -949,6 +952,9 @@ export function DashboardWorkPlanSection({
                           </div>
                           {canEdit && status !== 'done' && <a href={`/dashboard/tasks/${task.id}/planning`} className="shrink-0 rounded px-1.5 py-1 text-[0.6rem] font-medium text-indigo-600 hover:bg-indigo-50" title="Project, deadline and checklist">Plan</a>}
                         </div>
+                      </td>
+                      <td className={`${TABLE_CELL_CLASS} text-center`}>
+                        <TaskCommentsButton taskId={task.id} taskTitle={task.taskTitle} compact />
                       </td>
                       <td className={TABLE_CELL_CLASS}>
                         <DashboardInlineTaskCell
@@ -1102,7 +1108,7 @@ export function DashboardWorkPlanSection({
                   <tr>
                     <td
                       className="px-6 py-10 text-center text-[0.78rem] font-medium text-[var(--muted-foreground)]"
-                      colSpan={managementView ? 10 : 9}
+                      colSpan={managementView ? 11 : 10}
                     >
                       {managementView && normalizedSearchQuery
                         ? `No tasks match "${searchQuery.trim()}".`

@@ -34,6 +34,15 @@ describe('Completion/reopen invariants',()=>{
 });
 describe('Planning controls',()=>{
  const input={version:0,projectName:null,clientName:null,dueAt:null,estimatedMinutes:null,checklist:[]};
+ it('allows same-origin LAN planning writes when Next reports an internal localhost URL',async()=>{
+  const request=req(input);request.headers.set('origin','http://192.168.68.95:3000');request.headers.set('host','192.168.68.95:3000');
+  expect((await saveTaskPlanning(request,id)).status).toBe(200);
+ });
+ it('rejects a different site claiming the LAN task endpoint',async()=>{
+  const request=req(input);request.headers.set('origin','https://untrusted.example');request.headers.set('host','192.168.68.95:3000');
+  expect((await saveTaskPlanning(request,id)).status).toBe(403);
+  expect(m.tx.dailyTask.findFirst).not.toHaveBeenCalled();
+ });
  it('rejects stale versions',async()=>{m.tx.dailyTask.findFirst.mockResolvedValue(task({planningVersion:1}));expect((await saveTaskPlanning(req(input),id)).status).toBe(409);});
  it('rejects edits to completed records',async()=>{m.tx.dailyTask.findFirst.mockResolvedValue(task({updates:[{status:'done'}]}));expect((await saveTaskPlanning(req(input),id)).status).toBe(409);});
  it('does not let an assignee change a managers deadline',async()=>{m.tx.dailyTask.findFirst.mockResolvedValue(task({assignedBy:'manager'}));expect((await saveTaskPlanning(req({...input,dueAt:'2026-09-15T12:00:00Z'}),id)).status).toBe(403);});

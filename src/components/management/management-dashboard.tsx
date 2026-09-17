@@ -1,10 +1,11 @@
 'use client';
+import { TaskCommentsButton } from "@/components/dashboard/task-comments";
 import { formatDateTimeInDhaka } from "@/lib/utils";
 import { formatDateInDhaka } from "@/lib/utils";
 import { DateInput } from "@/components/ui/date-input";
 import {useEffect,useMemo,useRef,useState} from 'react';
 import Link from 'next/link';
-import {Users,UserCheck,ClipboardList,CheckCircle2,LoaderCircle,Clock3,TriangleAlert,RotateCcw,Download,CalendarDays,Radio,Building2,ChartColumnIncreasing} from 'lucide-react';
+import {Users,UserCheck,ClipboardList,CheckCircle2,LoaderCircle,Clock3,TriangleAlert,RotateCcw,Download,CalendarDays,Radio,Building2,ChartColumnIncreasing,Pencil} from 'lucide-react';
 import type {ManagementDashboardData} from '@/lib/management/dashboard-data';
 import {taskTimeUsage} from '@/lib/management/task-insights';
 import {toDateOnly} from '@/lib/utils';
@@ -125,7 +126,7 @@ export function ManagementDashboard({initial,filters}:{initial:ManagementDashboa
  {attentionFilter&&<p className={styles.filterNote}>Showing {attentionFilter} tasks. <Link href={`/management?${new URLSearchParams([...exportQuery].filter(([key])=>key!=='attention'))}`}>Clear attention filter</Link></p>}
  <div className={styles.kpis}>{kpis.map(k=><section className={styles.kpi} data-tone={k.tone} key={k.label} title={`${k.label}: ${k.value??'—'} · ${k.value===null?'Access not granted':k.sub}`}><div className={`${styles.icon} ${styles[k.tone]}`}><k.icon size={20}/></div><div className={styles.kpiContent}><div className={styles.kpiHeadline}><strong>{k.value??'—'}</strong><h2>{k.label}</h2></div><p>{k.value===null?'Access not granted':k.sub}</p></div></section>)}</div>
  <div className={styles.layout}><div className={styles.main}><section className={`${styles.panel} ${styles.taskPanel}`} aria-label="Tasks in selected period"><div className={styles.panelHeading}><div><h2><ClipboardList size={17}/>Tasks in selected period <span className={styles.recordCount}>{rows.length}</span></h2><p title="All tasks within your scope. Task time is independent of attendance.">Scope-filtered tasks · independent task time</p></div><div className={styles.actions}><select aria-label="Sort tasks" value={sort} onChange={e=>{setSort(e.target.value);taskRowsRef.current?.scrollTo({top:0,behavior:'instant'});}}><option value="latest">Latest update</option><option value="deadline">Deadline</option><option value="employee">Employee</option></select>{data.canExport&&<details className={styles.export}><summary><Download size={13}/>Export</summary><div><a href={`/api/management/dashboard/export?${exportQuery}&format=xlsx`}>Excel (.xlsx)</a><a href={`/api/management/dashboard/export?${exportQuery}&format=pdf`}>PDF</a></div></details>}</div></div>
- <div className={`${styles.tableWrap} ${styles.scrollTable} ${styles.hoverScrollbar}`} ref={taskRowsRef} data-scroll-table tabIndex={0} role="region" aria-label="Task table"><table className={styles.tasks}><colgroup>{[3,21,14,16,8,8,10,12,8].map((width,index)=><col key={index} style={{width:'var(--task-col-'+(index+1)+','+width+'%)'}}/>)}</colgroup>
+ <div className={`${styles.tableWrap} ${styles.scrollTable} ${styles.hoverScrollbar}`} ref={taskRowsRef} data-scroll-table tabIndex={0} role="region" aria-label="Task table"><table className={styles.tasks}><colgroup>{[3,21,14,15,8,8,10,12,9].map((width,index)=><col key={index} style={{width:'var(--task-col-'+(index+1)+','+width+'%)'}}/>)}</colgroup>
  <thead><tr>{['SL','Task','Assigned to','Status / Priority','Deadline','Progress','Time (T/E)','Updated','Action'].map(h=><th key={h} title={h==='Time (T/E)'?'Tracked / Estimated time':undefined}>{h}</th>)}</tr></thead>
  <tbody>{rows.map((t,i)=><tr key={t.id}>
   <td>{i+1}</td>
@@ -136,7 +137,7 @@ export function ManagementDashboard({initial,filters}:{initial:ManagementDashboa
   <td title={t.checklistTotal?t.checklistDone+'/'+t.checklistTotal+' items'+(t.progress===100&&t.status!=='done'?' · Awaiting Done':''):undefined}>{t.progress===null?'—':<Meter value={t.progress}/>} {!!t.checklistTotal&&<small>{t.checklistDone}/{t.checklistTotal} items</small>}</td>
   <td className={`${styles.mono} ${styles.timeCell}`}><TaskTime tracked={t.totalTrackedMinutes} estimated={t.estimatedMinutes}/></td>
   <td data-task-updated><CompactDate value={t.lastUpdate} inline/></td>
-  <td><div className={styles.rowActions}><Link className={styles.textLink} href={'/dashboard/tasks/'+t.id}>Details</Link>{t.canPlan&&t.status!=='done'&&<Link className={styles.textLink} href={'/dashboard/tasks/'+t.id+'/planning'}>Plan</Link>}</div></td>
+  <td><div className={styles.rowActions}><TaskCommentsButton taskId={t.id} taskTitle={t.title} compact/>{t.canPlan&&t.status!=='done'&&<Link className={styles.planAction} href={'/dashboard/tasks/'+t.id+'/planning'} aria-label={'Edit plan for '+t.title} title="Edit plan"><Pencil size={13} aria-hidden="true"/></Link>}</div></td>
  </tr>)}</tbody></table>{!rows.length&&<p className={styles.empty}>{data.taskAccess?'No tasks match these filters.':'Task view access has not been granted.'}</p>}</div>
  </section>
  <div className={styles.summaries}>

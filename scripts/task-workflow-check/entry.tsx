@@ -15,10 +15,23 @@ const previous=localStorage.getItem('synthetic-server-timer');if(previous)timer=
 window.phaseOneTest={deferTimerReads:false,lastReadRevision:null,failTimerReads:false,failNext:"",requests:[],submitted:false,monitorEvents:[],timer};
 for(const event of ["worklog:task-monitor-start","worklog:task-monitor-stop"])window.addEventListener(event,()=>window.phaseOneTest.monitorEvents.push(event));
 let note:string|null=null;
+const commentReplies:Array<{id:string;body:string;createdAt:string;authorId:string;authorName:string}>=[];
 function current(){const latest=localStorage.getItem("synthetic-server-timer");if(latest)timer=JSON.parse(latest);const now=new Date();return {...timer,serverNow:now.toISOString(),trackedMilliseconds:timer.trackedMilliseconds+(timer.runningStartedAt?Math.max(0,now.getTime()-new Date(timer.serverNow).getTime()):0)};}
 window.fetch=async(input,init)=>{
  const url=String(input),body=init?.body instanceof FormData?Object.fromEntries(init.body):JSON.parse(String(init?.body??"{}"));
  window.phaseOneTest.requests.push({url,body});
+ if(url.includes("/comments")){
+   if(url.endsWith("/read"))return Response.json({success:true});
+   if(init?.method==="POST"){
+     const comment={id:crypto.randomUUID(),body:String(body.body),createdAt:new Date().toISOString(),authorId:userId,authorName:"You"};
+     commentReplies.push(comment);return Response.json({success:true,comment},{status:201});
+   }
+   if(url.includes("summary=1"))return Response.json({success:true,unreadCount:1});
+   return Response.json({success:true,taskTitle:"Synthetic workflow task",unreadCount:1,hasMore:false,nextCursor:null,currentUserId:userId,comments:[
+     {id:"44444444-4444-4444-8444-444444444444",body:"Please review this task.",createdAt:"2026-09-17T06:00:00.000Z",authorId:"33333333-3333-4333-8333-333333333333",authorName:"Manager"},
+     ...commentReplies,
+   ]});
+ }
  if(url.includes("/task-timers?")){
    while(window.phaseOneTest.deferTimerReads)await new Promise(resolve=>setTimeout(resolve,20));
    if(window.phaseOneTest.failTimerReads)return Response.json({message:"Synthetic timer read rejected"},{status:503});

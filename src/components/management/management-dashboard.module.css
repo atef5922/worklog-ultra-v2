@@ -287,10 +287,10 @@
 
 /* Give task names more room only when the date and status remain readable. */
 @media(min-width:1350px){
- .tasks{--task-col-2:25%;--task-col-3:15%;--task-col-4:13%;--task-col-6:7%;--task-col-8:11%}
+ .tasks{--task-col-2:24%;--task-col-3:15%;--task-col-4:13%;--task-col-6:7%;--task-col-8:11%}
 }
 @media(min-width:1500px){
- .tasks{--task-col-2:27%;--task-col-8:9%}
+ .tasks{--task-col-2:26%;--task-col-8:9%}
 }
 @media(max-width:700px){
  .tasks{--task-col-2:19%;--task-col-8:14%}
@@ -359,3 +359,18 @@
  75%,100%{opacity:0;transform:scale(1.4)}
 }
 @media(prefers-reduced-motion:reduce){.liveIcon::after{animation:none;opacity:0}}
+
+/* Keep dashboard task actions in one row and long values inside their cells. */
+.dashboard .tasks{min-width:0;table-layout:fixed}
+.tasks :is(th,td){overflow:hidden;text-overflow:ellipsis}
+.tasks td:last-child{overflow:visible}
+.tasks th:last-child{text-align:center}
+.tasks .taskTitle{display:block;width:100%;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tasks .person{width:100%;min-width:0;overflow:hidden;white-space:nowrap}
+.tasks .person>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.tasks .statusPriority,.tasks .inlineDate{max-width:100%;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.tasks td time{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tasks .rowActions{display:flex;align-items:center;justify-content:center;gap:3px;min-width:0;flex-wrap:nowrap}
+.tasks .rowActions button>span{right:0;top:-6px}
+.planAction{display:grid;width:26px;height:26px;flex:none;place-items:center;border:1px solid var(--panel-border);border-radius:7px;background:var(--panel);color:#365fcf;transition:background .16s,border-color .16s}
+.planAction:hover{border-color:#a9bdec;background:var(--panel-muted)}
