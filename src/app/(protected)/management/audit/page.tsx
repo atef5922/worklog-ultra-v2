@@ -1,4 +1,5 @@
-import {CalendarDays, ChevronDown, ClipboardCheck, Filter, Search, ShieldCheck, UserRound} from "lucide-react";
+import { DateInput } from "@/components/ui/date-input";
+import {ChevronDown, ClipboardCheck, Filter, Search, ShieldCheck, UserRound} from "lucide-react";
 import Link from "next/link";
 import {redirect} from "next/navigation";
 import type {Prisma} from "@prisma/client";
@@ -91,16 +92,16 @@ export default async function AuditPage({searchParams}:{searchParams:Promise<Aud
     <form className="rounded-xl border border-[var(--panel-border)] bg-[var(--panel)] p-3" method="get">
       <div className="grid gap-2 md:grid-cols-[minmax(150px,0.8fr)_minmax(150px,0.8fr)_minmax(190px,1fr)_minmax(220px,1.2fr)_auto_auto]">
         <label className="space-y-1 text-xs font-medium text-[var(--muted-foreground)]">From
-          <span className="relative block"><CalendarDays className="pointer-events-none absolute left-3 top-2.5 size-4"/><input className={`${fieldClass} pl-9`} type="date" name="from" defaultValue={from}/></span>
+          <span className="relative block"><DateInput className={fieldClass} name="from" defaultValue={from}/></span>
         </label>
         <label className="space-y-1 text-xs font-medium text-[var(--muted-foreground)]">To
-          <span className="relative block"><CalendarDays className="pointer-events-none absolute left-3 top-2.5 size-4"/><input className={`${fieldClass} pl-9`} type="date" name="to" defaultValue={to}/></span>
+          <span className="relative block"><DateInput className={fieldClass} name="to" defaultValue={to}/></span>
         </label>
         <label className="space-y-1 text-xs font-medium text-[var(--muted-foreground)]">Action
           <select className={fieldClass} name="action" defaultValue={action}><option value="">All actions</option>{actionRows.map(row=><option key={row.action} value={row.action}>{auditActionLabel(row.action)}</option>)}</select>
         </label>
         <label className="space-y-1 text-xs font-medium text-[var(--muted-foreground)]">Employee
-          <span className="relative block"><Search className="pointer-events-none absolute left-3 top-2.5 size-4"/><input className={`${fieldClass} pl-9`} name="employee" defaultValue={employee} placeholder="Search name or email"/></span>
+          <span className="relative block"><Search className="pointer-events-none absolute left-3 top-2.5 size-4"/><input className={fieldClass} name="employee" defaultValue={employee} placeholder="Search name or email"/></span>
         </label>
         <button className="mt-auto inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700" type="submit"><Filter className="size-4"/>Filter</button>
         <Link className="mt-auto inline-flex h-9 items-center justify-center rounded-lg border border-[var(--panel-border)] px-4 text-sm font-medium hover:bg-[var(--panel-alt)]" href="/management/audit">Reset</Link>

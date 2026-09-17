@@ -4,7 +4,7 @@ import { sendWorkspaceEmail } from "@/lib/auth/mail";
 import { requireUser } from "@/lib/auth/server";
 import { db } from "@/lib/db";
 import { markReminderSent } from "@/lib/worklog";
-import { toDateOnly } from "@/lib/utils";
+import { formatDateTimeInDhaka, toDateOnly } from "@/lib/utils";
 
 export async function POST() {
   const user = await requireUser();
@@ -45,7 +45,7 @@ export async function POST() {
   const delivered = await sendWorkspaceEmail({
     email: user.email,
     subject: "Pending task reminder",
-    html: `<div style="font-family:Arial,sans-serif;color:#0f1725"><h2>Hello ${user.name},</h2><p>You still have pending work scheduled for today.</p><p>Please open WorkLog and complete or update your tasks.</p><p><strong>Reminder time:</strong> ${now.toLocaleString("en-BD", { timeZone: "Asia/Dhaka" })}</p></div>`,
+    html: `<div style="font-family:Arial,sans-serif;color:#0f1725"><h2>Hello ${user.name},</h2><p>You still have pending work scheduled for today.</p><p>Please open WorkLog and complete or update your tasks.</p><p><strong>Reminder time:</strong> ${formatDateTimeInDhaka(now)}</p></div>`,
   });
 
   if (!delivered) {

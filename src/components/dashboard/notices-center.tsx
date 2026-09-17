@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateTimeInDhaka } from "@/lib/utils";
 import { BellRing, Megaphone } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -185,13 +186,7 @@ export function NoticesCenter({
                   </div>
                   <span className="shrink-0 font-mono text-[0.68rem] font-semibold tabular-nums text-[var(--muted-foreground)]">
                     {notice.publishedAt
-                      ? new Intl.DateTimeFormat("en-BD", {
-                          timeZone: "Asia/Dhaka",
-                          day: "numeric",
-                          month: "short",
-                          hour: "numeric",
-                          minute: "2-digit",
-                        }).format(new Date(notice.publishedAt))
+                      ? formatDateTimeInDhaka(notice.publishedAt)
                       : "Just now"}
                   </span>
                 </div>

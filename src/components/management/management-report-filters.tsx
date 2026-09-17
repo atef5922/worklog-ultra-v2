@@ -1,4 +1,5 @@
 'use client';
+import { DateInput } from "@/components/ui/date-input";
 
 import {useMemo, useState, useTransition} from 'react';
 import {usePathname, useRouter, useSearchParams} from 'next/navigation';
@@ -89,11 +90,11 @@ export function ManagementReportFilters({
       </div>
       <label>
         From
-        <input type="date" value={values.from} onChange={(event) => update('from', event.target.value)} />
+        <DateInput value={values.from} onValueChange={(value) => update('from', value)} />
       </label>
       <label>
         To
-        <input type="date" value={values.to} onChange={(event) => update('to', event.target.value)} />
+        <DateInput value={values.to} onValueChange={(value) => update('to', value)} />
       </label>
       <label>
         Department

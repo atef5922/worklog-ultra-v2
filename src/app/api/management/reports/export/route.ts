@@ -4,7 +4,7 @@ import { managementRecords } from "@/lib/management/records";
 import { exportResponse, type ReportSheet } from "@/lib/management/export";
 import { db } from "@/lib/db";
 import { roleUiTitle } from "@/lib/auth/roles";
-import { formatMinutes } from "@/lib/utils";
+import { formatDateInDhaka, formatMinutes } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
       {
         pdf: {
           subtitle: "Employee work, task and attendance summary",
-          period: `${data.from} to ${data.to}`,
+          period: `${formatDateInDhaka(data.from)} to ${formatDateInDhaka(data.to)}`,
           scope: `${rows.length} authorized employee record${rows.length === 1 ? "" : "s"}`,
           metrics: [
             { label: "People in scope", value: rows.length, note: "Authorized records" },

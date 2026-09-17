@@ -186,6 +186,19 @@ export function getDhakaCutoffIso(dayKey: string, hour = 19, minute = 30) {
   return `${dayKey}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00+06:00`;
 }
 
+export function formatDateInDhaka(value?: Date | string | null) {
+  if (!value) return "Not set";
+  const parsedValue = parseDhakaDateTime(value);
+  if (!parsedValue) return "Not set";
+
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: WORKLOG_TIME_ZONE,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(parsedValue);
+}
+
 export function formatDateTimeInDhaka(value?: Date | string | null) {
   if (!value) return "Not set";
   const parsedValue = parseDhakaDateTime(value);
@@ -194,11 +207,11 @@ export function formatDateTimeInDhaka(value?: Date | string | null) {
     return "Not set";
   }
 
-  return new Intl.DateTimeFormat("en-BD", {
+  return new Intl.DateTimeFormat("en-GB", {
     timeZone: WORKLOG_TIME_ZONE,
+    day: "2-digit",
+    month: "2-digit",
     year: "numeric",
-    month: "numeric",
-    day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,

@@ -83,9 +83,9 @@ async function main() {
     await button(editor, 'Correct / close sessions').click();
     const save = button(editor, 'Save correction');
     assert.equal(await save.isDisabled(), true);
-    assert.equal(await editor.getByLabel('work start 1',{exact:true}).inputValue(), '2026-09-14T10:00:43.127');
-    await editor.getByLabel('work end 1',{exact:true}).fill('2026-09-14T11:00');
-    await editor.getByLabel('work end 2',{exact:true}).fill('2026-09-14T12:00');
+    assert.equal(await editor.getByLabel('work start 1',{exact:true}).inputValue(), '14/09/2026 10:00:43.127');
+    await editor.getByLabel('work end 1',{exact:true}).fill('14/09/2026 11:00');
+    await editor.getByLabel('work end 2',{exact:true}).fill('14/09/2026 12:00');
     await editor.getByLabel('Correction reason',{exact:true}).fill('Verified both office sessions with the employee.');
     await editor.getByRole('checkbox').check();
     await fail(editor, 'http'); await save.click();

@@ -1,3 +1,4 @@
+import { formatDateInDhaka } from "@/lib/utils";
 import {personalOrScopedTasks, type AccessActor} from '@/lib/auth/policy';
 import {db} from '@/lib/db';
 import {taskActivityDisplay} from '@/lib/management/task-activity-display';
@@ -120,7 +121,7 @@ export async function TaskRecord({actor, taskId}: {actor: AccessActor; taskId: s
             ['Deadline', fmt(task.dueAt)],
             ['Estimated time', task.estimatedMinutes ? formatMinutes(task.estimatedMinutes) : 'Not set'],
             ['Priority', task.priority],
-            ['Planned date', task.planDate.toISOString().slice(0, 10)],
+            ['Planned date', formatDateInDhaka(task.planDate)],
             ['Created', fmt(task.createdAt)],
             ['Current status', task.updates.at(-1)?.status ?? 'pending'],
             ['Tracked time', formatMinutes(task.updates.reduce((sum, update) => sum + update.trackedMinutes, 0))],
@@ -164,7 +165,7 @@ export async function TaskRecord({actor, taskId}: {actor: AccessActor; taskId: s
             <tbody>
               {task.updates.map((update) => (
                 <tr className="border-t border-[var(--panel-border)]" key={update.id}>
-                  <td className="p-2">{update.reportDate.toISOString().slice(0, 10)}</td>
+                  <td className="p-2">{formatDateInDhaka(update.reportDate)}</td>
                   <td className="p-2">{update.status === 'done' ? 'Completed (100%)' : update.status}</td>
                   <td className="p-2">{fmt(update.actualStart)}</td>
                   <td className="p-2">{fmt(update.actualEnd)}</td>

@@ -1,3 +1,5 @@
+import { formatDateInDhaka } from "@/lib/utils";
+import { DateInput } from "@/components/ui/date-input";
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -29,7 +31,7 @@ import styles from './employee-details.module.css';
 
 const statusLabel=(status:string)=>status==='done'?'Completed':status==='in_progress'?'In progress':'Pending';
 const initials=(name:string)=>name.split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]?.toUpperCase()).join('');
-const shortDate=(date:Date)=>new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Dhaka',day:'2-digit',month:'short',year:'numeric'}).format(date);
+const shortDate=(date:Date)=>formatDateInDhaka(date);
 const rangeMinutes=(updates:{reportDate:Date;trackedMinutes:number}[],from:string)=>
  updates.filter(update=>toDateOnly(update.reportDate)>=from).reduce((total,update)=>total+update.trackedMinutes,0);
 
@@ -89,8 +91,8 @@ export default async function EmployeeDetailsPage({params,searchParams}:{params:
    </nav>
    <form className={styles.dateFilter}>
     <input name="tab" value={tab} hidden readOnly/>
-    <label>From<input type="date" name="from" defaultValue={data.from}/></label>
-    <label>To<input type="date" name="to" defaultValue={data.to}/></label>
+    <label>From<DateInput name="from" defaultValue={data.from}/></label>
+    <label>To<DateInput name="to" defaultValue={data.to}/></label>
     <button><CalendarDays size={14}/>Apply dates</button>
    </form>
   </section>

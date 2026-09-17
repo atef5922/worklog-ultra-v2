@@ -31,7 +31,7 @@ module.exports=async function checkFilters(browser,base,fixture){
   await taskArea.evaluate(el=>el.scrollTop=el.scrollHeight);
   async function apply(label,name,value,type='select'){
    const field=page.getByLabel(label,{exact:true});
-   if(type==='select')await field.selectOption(value);else await field.fill(value);
+   if(type==='select')await field.selectOption(value);else await field.fill(value.slice(8,10)+'/'+value.slice(5,7)+'/'+value.slice(0,4));
    await page.waitForURL(url=>url.searchParams.get(name)===value);
    assert.equal(requests.at(-1)[name],value);
   }
@@ -77,7 +77,7 @@ module.exports=async function checkFilters(browser,base,fixture){
   await page.getByLabel('Search',{exact:true}).fill('');
   await page.getByRole('status').filter({hasText:'Updated'}).waitFor();
   const count=requests.length;
-  await page.getByLabel('From',{exact:true}).fill('2026-10-01');
+  await page.getByLabel('From',{exact:true}).fill('01/10/2026');
   await page.getByText(/From date must not be after To date/).waitFor();
   await page.waitForTimeout(100);assert.equal(requests.length,count,'Invalid date ranges never issue a query');
   await apply('To','to','2026-10-02','input');

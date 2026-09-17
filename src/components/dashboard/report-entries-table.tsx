@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateInDhaka } from "@/lib/utils";
 import { useState, type KeyboardEvent } from "react";
 import { FileClock } from "lucide-react";
 import { TaskDetailsModal, type TaskDetails } from "@/components/dashboard/task-details-modal";
@@ -102,7 +103,7 @@ export function ReportEntriesTable({ firstIndex, items }: { firstIndex: number; 
                 {String(firstIndex + index + 1).padStart(2, "0")}
               </p>
               <p className="font-mono text-[0.72rem] font-semibold tabular-nums text-[var(--muted-foreground)] md:px-3 md:py-2">
-                {item.date}
+                {formatDateInDhaka(item.date)}
               </p>
               <div className="mt-1.5 min-w-0 md:mt-0 md:px-3 md:py-2">
                 <div className="flex flex-wrap items-center gap-2 md:block">

@@ -1,4 +1,5 @@
 import "server-only";
+import { formatDateInDhaka, formatDateTimeInDhaka } from "@/lib/utils";
 
 import ExcelJS from "exceljs";
 import PDFDocument from "pdfkit";
@@ -87,10 +88,7 @@ function filterDescription({ data, params }: ReportContext) {
 }
 
 function generatedDate(value: Date) {
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Dhaka", day: "2-digit", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit", hour12: true,
-  }).format(value);
+  return formatDateTimeInDhaka(value);
 }
 
 export async function attendanceExcelReport(context: ReportContext) {
@@ -115,7 +113,7 @@ export async function attendanceExcelReport(context: ReportContext) {
   summary.getCell("A1").font = { name: "Aptos", size: 16, bold: true, color: { argb: "FF172339" } };
   summary.getRow(1).height = 30;
   for (const [number, value] of [
-    [2, `Period: ${data.from} to ${data.to}   |   Asia/Dhaka`],
+    [2, `Period: ${formatDateInDhaka(data.from)} to ${formatDateInDhaka(data.to)}   |   Asia/Dhaka`],
     [3, filterDescription(context)],
     [4, `Prepared by: ${preparedBy}   |   Generated: ${generatedDate(generatedAt)}`],
   ] as const) {
@@ -172,7 +170,7 @@ export async function attendanceExcelReport(context: ReportContext) {
   sheet.getCell("A1").font = { name: "Aptos Display", size: 16, bold: true, color: { argb: "FF172339" } };
   sheet.getRow(1).height = 30;
   sheet.mergeCells("A2:K2");
-  sheet.getCell("A2").value = `Reporting period: ${data.from} to ${data.to}   |   Time zone: Asia/Dhaka`;
+  sheet.getCell("A2").value = `Reporting period: ${formatDateInDhaka(data.from)} to ${formatDateInDhaka(data.to)}   |   Time zone: Asia/Dhaka`;
   sheet.getRow(2).height = 20;
   sheet.mergeCells("A3:K3");
   sheet.getCell("A3").value = filterDescription(context);
@@ -215,7 +213,7 @@ export async function attendanceExcelReport(context: ReportContext) {
     row.eachCell({ includeEmpty: true }, cell => {
       cell.border = { bottom: { style: "hair", color: { argb: "FFD7DEE8" } } };
     });
-    row.getCell(2).numFmt = "dd mmm yyyy";
+    row.getCell(2).numFmt = "dd/mm/yyyy";
     for (const column of [6, 7]) row.getCell(column).numFmt = "hh:mm AM/PM";
     for (const column of [8, 9, 10]) row.getCell(column).numFmt = "[h]:mm";
     for (const column of [1, 8, 9, 10]) row.getCell(column).alignment = { vertical: "middle", horizontal: "right" };
@@ -275,7 +273,7 @@ export async function attendancePdfReport(context: ReportContext) {
     y = 28;
     doc.font("Helvetica-Bold").fontSize(14).fillColor(INK).text("WorkLog Ultra", margin, y, { lineBreak: false });
     doc.font("Helvetica-Bold").fontSize(11).text("ATTENDANCE REPORT", margin, y + 19, { lineBreak: false });
-    doc.font("Helvetica").fontSize(8).fillColor(MUTED).text(`${data.from} to ${data.to}  |  Asia/Dhaka`, margin, y + 36, { lineBreak: false });
+    doc.font("Helvetica").fontSize(8).fillColor(MUTED).text(`${formatDateInDhaka(data.from)} to ${formatDateInDhaka(data.to)}  |  Asia/Dhaka`, margin, y + 36, { lineBreak: false });
     if (!continued) {
       doc.fontSize(7.5);
       pdfText(doc, filterDescription(context), margin, y + 50, tableWidth, fontPath, { height: 12, lineBreak: false });
@@ -344,7 +342,7 @@ export async function attendancePdfReport(context: ReportContext) {
     y += 29;
   }
   data.rows.forEach((item, index) => {
-    const values = [String(index + 1), item.date, item.employeeName, departmentTeam(item), status(item),
+    const values = [String(index + 1), formatDateInDhaka(item.date), item.employeeName, departmentTeam(item), status(item),
       clock(item.firstIn), clock(item.lastOut), duration(item.countedMinutes),
       duration(item.breakMinutes), duration(item.overtimeMinutes), remarks(item)];
     const height = Math.max(29, ...values.map((value, column) => {

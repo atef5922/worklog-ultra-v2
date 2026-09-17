@@ -1,3 +1,4 @@
+import { formatDateInDhaka } from "@/lib/utils";
 import { ClipboardList } from "lucide-react";
 import { DashboardWorkspaceModal } from "@/components/dashboard/dashboard-workspace-modal";
 import { DashboardWorkPlanSection } from "@/components/dashboard/dashboard-work-plan-table";
@@ -9,13 +10,8 @@ import { isTenderDepartmentName, toDateOnly } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 function formatDashboardDate(value: Date) {
-  return new Intl.DateTimeFormat("en-BD", {
-    timeZone: "Asia/Dhaka",
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(value);
+  const weekday = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", weekday: "long" }).format(value);
+  return `${weekday}, ${formatDateInDhaka(value)}`;
 }
 
 export default async function PlanPage() {

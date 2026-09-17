@@ -1,3 +1,4 @@
+import { formatDateInDhaka } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireAdminOrManager } from "@/lib/auth/server";
@@ -77,7 +78,7 @@ export default async function AdminReportsPage() {
                           <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
                             {dailyLogs.map((entry) => (
                               <div key={`${report.id}-${entry.date}`} className="rounded-2xl border border-violet-200 bg-white px-3 py-2 text-xs text-slate-700">
-                                <p className="font-semibold text-violet-700">{entry.date}</p>
+                                <p className="font-semibold text-violet-700">{formatDateInDhaka(entry.date)}</p>
                                 <p className="mt-1">{entry.progress}% complete</p>
                                 <p>{formatMinutes(entry.trackedMinutes)}</p>
                                 <p className="mt-1 text-[var(--muted-foreground)]">{entry.note || "No note"}</p>

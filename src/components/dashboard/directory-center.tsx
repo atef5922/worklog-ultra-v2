@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateInDhaka } from "@/lib/utils";
 import { useMemo, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -370,7 +371,7 @@ export function DirectoryCenter({
                                         className="rounded-2xl border border-violet-200 bg-white px-3 py-2 text-xs text-slate-700"
                                         key={`${task.id}-${entry.date}`}
                                       >
-                                        <p className="font-semibold text-violet-700">{entry.date}</p>
+                                        <p className="font-semibold text-violet-700">{formatDateInDhaka(entry.date)}</p>
                                         <p className="mt-1">{entry.progress}% complete</p>
                                         <p>{formatMinutes(entry.trackedMinutes)}</p>
                                         <p className="mt-1 text-[var(--muted-foreground)]">{entry.note || "No note"}</p>

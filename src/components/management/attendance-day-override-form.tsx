@@ -1,4 +1,5 @@
 "use client";
+import { DateInput } from "@/components/ui/date-input";
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -48,7 +49,7 @@ export function AttendanceDayOverrideForm({
     <h2 className="font-semibold">Dated off day or leave exception</h2>
     <p className="mt-1 text-xs text-[var(--muted-foreground)]">Friday is off by default. Set a specific workday, another off day, or employee leave with an audited reason. This does not edit In/Out evidence or approve payable overtime.</p>
     <form onSubmit={submit} className="mt-3 flex flex-wrap items-end gap-2 text-xs">
-      <label className="flex flex-col gap-1">Date<input type="date" required value={date} onChange={event => setDate(event.target.value)} className="rounded-lg border border-[var(--panel-border)] bg-[var(--panel)] p-2" /></label>
+      <label className="flex flex-col gap-1">Date<DateInput required value={date} onValueChange={setDate} className="rounded-lg border border-[var(--panel-border)] bg-[var(--panel)] p-2" /></label>
       <label className="flex min-w-52 flex-col gap-1">Applies to<select required value={subject} onChange={event => { const next = event.target.value; setSubject(next); if (!next.startsWith("employee:") && kind === "leave") setKind("off"); }} className="rounded-lg border border-[var(--panel-border)] bg-[var(--panel)] p-2">
         <option value="">Select a subject</option>
         {allowCompany && <option value="company">Full company</option>}

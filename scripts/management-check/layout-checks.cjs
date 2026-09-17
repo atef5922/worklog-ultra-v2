@@ -9,6 +9,10 @@ module.exports=async function layoutChecks(browser,base,out,errors,fixture){
    await page.waitForTimeout(300);
    assert.equal(await page.getByText('Screen Monitoring',{exact:true}).count(),0);
    assert.equal(await page.locator('.dashboard-monitor-strip').count(),0);
+   const attendanceChart=await page.locator("#attendance-summary [role=img]").evaluate(element=>element.style.background);
+   assert.match(attendanceChart,/241, 162, 59|#f1a23b/i,"Late must have an orange donut segment");
+   assert.match(attendanceChart,/62\.5%/,"On-time Present excludes the Late segment");
+   assert.match(attendanceChart,/75%/,"Present includes Late in the donut");
    const typography=await page.evaluate(()=>{
     const root=document.querySelector('[data-management-dashboard]');
     const smallText=[...root.querySelectorAll('*')].filter(el=>
@@ -37,11 +41,11 @@ module.exports=async function layoutChecks(browser,base,out,errors,fixture){
       viewportHeight:innerHeight,
       rootBottom:root.getBoundingClientRect().bottom,
       panelOverflow:panels.filter(panel=>[...panel.querySelectorAll('table,a,button')].some(child=>{
-       const a=(child.closest('[data-scroll-table]')||child).getBoundingClientRect(),b=panel.getBoundingClientRect();
+       const a=(child.closest('[data-scroll-table], [data-live-scroll]')||child).getBoundingClientRect(),b=panel.getBoundingClientRect();
        return a.width&&a.height&&(a.bottom>b.bottom+2||a.right>b.right+2);
       })).map(panel=>panel.getAttribute('aria-label')||panel.id||panel.textContent.slice(0,50)),
       scrollContainers:[...document.querySelectorAll('.dashboard-scroll, [data-management-dashboard] *')].filter(el=>{
-       if(el.matches('[data-scroll-table]'))return false;const css=getComputedStyle(el);return (/auto|scroll/.test(css.overflowY)&&el.scrollHeight>el.clientHeight+1)||(/auto|scroll/.test(css.overflowX)&&el.scrollWidth>el.clientWidth+1);
+       if(el.matches('[data-scroll-table], [data-live-scroll]'))return false;const css=getComputedStyle(el);return (/auto|scroll/.test(css.overflowY)&&el.scrollHeight>el.clientHeight+1)||(/auto|scroll/.test(css.overflowX)&&el.scrollWidth>el.clientWidth+1);
       }).map(el=>el.className),
       bottomStrip:root.getBoundingClientRect().bottom
      };
@@ -58,12 +62,15 @@ module.exports=async function layoutChecks(browser,base,out,errors,fixture){
     }
    }
    await fit();
+   assert.equal(await page.locator('#live-team [data-kind]').count(),3,'Live team has exactly three KPI cards');
+   assert.deepEqual(await page.locator('#live-team [data-kind] span').allTextContents(),['Available','Task running','In meeting']);
+   assert.equal(await page.locator('#live-team tbody tr').count(),fixture.live.length,'All Live team employees are in the scrollable table');
    const taskRows=page.locator('table').first().locator('tbody tr');
    assert.equal(await taskRows.locator('td:nth-child(2) small,td:nth-child(7) small').count(),0,'Project/client and estimate sublines are removed even when populated');
    assert.equal(await taskRows.locator('[data-task-status] small,[data-task-updated] small').count(),0,'No stacked status or update fields');
    const firstTask=fixture.taskRows[0];
    assert.match(await taskRows.locator('[data-task-status]').first().innerText(),/Completed\s*\/\s*High/i);
-   assert.match(await taskRows.locator('[data-task-updated]').first().innerText(),/13 Sept\s*\/\s*06:00 pm/i);
+   assert.match(await taskRows.locator('[data-task-updated]').first().innerText(),/13 Sep\s*\/\s*06:00 pm/i);
    assert.equal(await taskRows.locator('[data-task-updated] time').first().getAttribute('datetime'),firstTask.lastUpdate,'Updated time keeps the source timestamp');
    assert.match(await taskRows.locator('[data-task-time]').nth(0).innerText(),/1:20\s*\/\s*4:00/,'Tracked and estimated time share one compact line');
    assert.equal(await taskRows.locator('[data-task-time][data-over-estimate="true"]').count(),1,'Over-estimate work is visibly flagged');
@@ -94,17 +101,35 @@ module.exports=async function layoutChecks(browser,base,out,errors,fixture){
    await page.locator('summary').filter({hasText:'Export'}).click();
    assert((await page.getByRole('link',{name:'PDF',exact:true}).getAttribute('href')).includes('format=pdf'));
    await page.locator('summary').filter({hasText:'Export'}).click();
-   const firstLive=await page.locator('#live-team a').allTextContents();
-   await page.getByRole('button',{name:'Next live team page',exact:true}).click();
-   assert.notDeepEqual(await page.locator('#live-team a').allTextContents(),firstLive);
+   assert.equal(await page.getByRole('button',{name:'Next live team page',exact:true}).count(),0,'Live team uses scrolling instead of pagination');
+   const liveArea=page.getByRole('region',{name:'Live team employees',exact:true});
+   const liveScroll=await liveArea.evaluate(el=>{
+    const canScroll=el.scrollHeight>el.clientHeight+1;
+    el.scrollTop=el.scrollHeight;
+    const box=el.getBoundingClientRect(),header=el.querySelector('th').getBoundingClientRect();
+    return {canScroll,top:el.scrollTop,headerTop:header.top,boxTop:box.top};
+   });
+   if(width>=1100&&height<=600)assert(liveScroll.canScroll&&liveScroll.top>0,'Live team table scrolls on compact desktop screens');
+   if(liveScroll.canScroll)assert(Math.abs(liveScroll.headerTop-liveScroll.boxTop)<=2,'Live team header stays visible while scrolling');
    await fit();
    await page.screenshot({path:path.join(out,'dashboard-'+width+'x'+height+'.png'),fullPage:true});
    if(width>=1100&&height>=560){
     await page.getByRole('button',{name:'Toggle fixture sidebar'}).click();await page.waitForTimeout(300);await fit();
     await page.screenshot({path:path.join(out,'dashboard-'+width+'x'+height+'-expanded.png'),fullPage:true});
    }
-   console.log('PASS viewport fit, bordered scroll tables, sticky headers, live pagination, sort and export',width,height);
+   console.log('PASS viewport fit, bordered scroll tables, sticky headers, live scrolling, sort and export',width,height);
   }finally{await page.close();}
+ }
+ for(const [variant,count] of [['five',5],['six',6]]){
+  const sample=await browser.newPage({viewport:{width:1365,height:640}});
+  try{
+   await sample.goto(base+'/?'+variant);
+   await sample.locator('#live-team tbody tr').last().waitFor();
+   await sample.waitForTimeout(150);
+   const metrics=await sample.locator('[data-live-scroll]').evaluate(el=>({bar:el.getAttribute('data-scrollbar'),delta:Math.round(el.querySelector('table').getBoundingClientRect().height-el.clientHeight),rows:el.querySelectorAll('tbody tr').length}));
+   assert.equal(metrics.rows,count);
+   assert.equal(metrics.bar,variant==='five'?'false':'true','Scrollbar appears only when another employee exceeds the available space');
+  }finally{await sample.close();}
  }
  const page=await browser.newPage({viewport:{width:1365,height:600}});
  page.setDefaultTimeout(10000);

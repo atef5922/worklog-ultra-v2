@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateInDhaka } from "@/lib/utils";
 import * as Dialog from "@radix-ui/react-dialog";
 import Image from "next/image";
 import Link from "next/link";
@@ -255,7 +256,7 @@ export function DashboardKpiCards({
                             </span>
                           ) : null}
                           {isCarriedOverTask(task) ? (
-                            <span className={CHIP_CLASS} data-chip="pending" title={`Still open from ${task.planDate}`}>
+                            <span className={CHIP_CLASS} data-chip="pending" title={`Still open from ${formatDateInDhaka(task.planDate)}`}>
                               Carried Over
                             </span>
                           ) : null}

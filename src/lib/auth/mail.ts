@@ -1,14 +1,8 @@
 import { Resend } from "resend";
+import { formatDateTimeInDhaka } from "@/lib/utils";
 
 function getDhakaMailStamp() {
-  return new Intl.DateTimeFormat("en-BD", {
-    timeZone: "Asia/Dhaka",
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  }).format(new Date());
+  return formatDateTimeInDhaka(new Date());
 }
 
 function getResendClient() {

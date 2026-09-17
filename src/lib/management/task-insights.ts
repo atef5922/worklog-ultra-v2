@@ -31,7 +31,7 @@ export type PresenceState='Task running'|'Available'|'On break'|'In meeting'|'Ch
 export function presenceState(input:{checkedIn:boolean;hasAttendance:boolean;onBreak:boolean;runningTasks:number;meetingStartedAt:Date|null;lastSeenAt:Date|null},now:Date){
  const connected=!!input.lastSeenAt&&now.getTime()-input.lastSeenAt.getTime()<=120000;
  const inMeeting=!!input.meetingStartedAt&&toDateOnly(input.meetingStartedAt)===toDateOnly(now);
- const state:PresenceState=inMeeting?'In meeting':!input.hasAttendance?'Not checked in':!input.checkedIn?'Checked out':input.onBreak?'On break':input.runningTasks>0?'Task running':'Available';
+ const state:PresenceState=!input.hasAttendance?'Not checked in':!input.checkedIn?'Checked out':inMeeting?'In meeting':input.onBreak?'On break':input.runningTasks>0?'Task running':'Available';
  return {state,connected,lastSeenAt:input.lastSeenAt?.toISOString()??null};
 }
 export const planningSchema=z.object({version:z.number().int().nonnegative(),projectName:z.string().trim().max(120).nullable(),clientName:z.string().trim().max(120).nullable(),dueAt:z.string().datetime({offset:true}).nullable(),estimatedMinutes:z.number().int().min(1).max(525600).nullable(),checklist:checklistSchema,reason:z.string().trim().max(1000).optional()});

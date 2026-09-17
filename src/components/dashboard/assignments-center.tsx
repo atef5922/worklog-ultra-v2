@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateInDhaka } from "@/lib/utils";
 import {
   CheckCircle2,
   CheckSquare2,
@@ -535,7 +536,7 @@ export function AssignmentsCenter({
                   {selectedAssignment?.list === "assignedByMe"
                     ? `Assigned to ${selectedTask.user.name}`
                     : `Assigned by ${selectedTask.assigner?.name ?? "Workspace"}`}{" "}
-                  - {selectedTask.department.name} - {toDateOnly(selectedTask.planDate)}
+                  - {selectedTask.department.name} - {formatDateInDhaka(selectedTask.planDate)}
                 </p>
               </div>
               <Button onClick={closeSelectedAssignment} size="icon" type="button" variant="ghost">

@@ -1,4 +1,5 @@
 import "server-only";
+import { formatDateTimeInDhaka } from "@/lib/utils";
 import ExcelJS from "exceljs";
 import PDFDocument from "pdfkit";
 import path from "node:path";
@@ -133,15 +134,7 @@ function writeBodyText(
 
 function formatGeneratedAt(value?: Date | string) {
   const date = value ? new Date(value) : new Date();
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Dhaka",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  }).format(Number.isNaN(date.valueOf()) ? new Date() : date);
+  return formatDateTimeInDhaka(Number.isNaN(date.valueOf()) ? new Date() : date);
 }
 
 function inferWidths(sheet: ReportSheet) {

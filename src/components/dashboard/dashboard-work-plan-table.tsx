@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateInDhaka } from "@/lib/utils";
 import { captureTaskLifecycleSnapshot, type CapturedTaskTimerSnapshot, completePersonalTask, reopenPersonalTask, type ConfirmedTaskUpdate } from "@/lib/task-workflow-client";
 
 import * as Tooltip from "@radix-ui/react-tooltip";
@@ -139,12 +140,7 @@ function formatDashboardTime(value?: string | null) {
 }
 
 function formatTaskPlanDate(value: string) {
-  return new Intl.DateTimeFormat("en-BD", {
-    timeZone: "Asia/Dhaka",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(`${toDateOnly(value)}T00:00:00+06:00`));
+  return formatDateInDhaka(value);
 }
 
 function upsertTaskDayUpdate(

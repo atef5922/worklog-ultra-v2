@@ -1,4 +1,5 @@
 "use client";
+import { DateInput } from "@/components/ui/date-input";
 
 import * as Dialog from "@radix-ui/react-dialog";
 import { AlertTriangle, Camera, Circle, ImageOff, Loader2, MonitorSmartphone, Trash2, X } from "lucide-react";
@@ -238,21 +239,19 @@ export function ScreenshotGallery({
             </div>
             <div className="min-w-0">
               <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">From</p>
-              <input
+              <DateInput
                 className="flex h-9 w-full rounded-lg border border-[var(--panel-border)] bg-[var(--panel)] px-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--primary)]"
                 max={toDate || undefined}
-                onChange={(event) => setFromDate(event.target.value)}
-                type="date"
+                onValueChange={setFromDate}
                 value={fromDate}
               />
             </div>
             <div className="min-w-0">
               <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">To</p>
-              <input
+              <DateInput
                 className="flex h-9 w-full rounded-lg border border-[var(--panel-border)] bg-[var(--panel)] px-3 text-sm text-[var(--foreground)] outline-none focus:border-[var(--primary)]"
                 min={fromDate || undefined}
-                onChange={(event) => setToDate(event.target.value)}
-                type="date"
+                onValueChange={setToDate}
                 value={toDate}
               />
             </div>

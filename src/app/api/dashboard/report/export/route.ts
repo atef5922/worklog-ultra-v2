@@ -4,16 +4,11 @@ import { requireEmployee } from "@/lib/auth/server";
 import { calculateSegmentedAttendanceMetrics } from "@/lib/attendance-policy";
 import { buildReportSummary, type ReportSummaryItem } from "@/lib/report-summary";
 import { getHistoryData } from "@/lib/worklog";
-import { toDateOnly, STANDARD_DAILY_HOURS } from "@/lib/utils";
+import { toDateOnly, formatDateInDhaka, STANDARD_DAILY_HOURS } from "@/lib/utils";
 import { db } from "@/lib/db";
 
 function formatRangeDate(value: string) {
-  return new Intl.DateTimeFormat("en-BD", {
-    timeZone: "Asia/Dhaka",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(`${value}T00:00:00+06:00`));
+  return formatDateInDhaka(value);
 }
 
 function formatRangeLabel(from: string, to: string) {
@@ -41,13 +36,9 @@ function slugify(value: string) {
 }
 
 function formatDateTimeInDhaka(value: Date) {
-  return new Intl.DateTimeFormat("en-BD", {
-    timeZone: "Asia/Dhaka",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Dhaka", day: "2-digit", month: "2-digit", year: "numeric",
+    hour: "2-digit", minute: "2-digit", hour12: true,
   }).format(value);
 }
 
@@ -79,17 +70,9 @@ function formatMinutes(totalMinutes: number) {
 /** Weekday + day/month, the label a reader scans for when flipping through days. */
 function formatDayLabel(value: string) {
   const parsed = new Date(`${value}T00:00:00+06:00`);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-BD", {
-    timeZone: "Asia/Dhaka",
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(parsed);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const weekday = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", weekday: "long" }).format(parsed);
+  return `${weekday}, ${formatDateInDhaka(parsed)}`;
 }
 
 type AttendanceDay = {
@@ -335,7 +318,7 @@ function addEntriesSheet(workbook: ExcelJS.Workbook, items: ReportSummaryItem[])
   items.forEach((item, index) => {
     const row = sheet.addRow({
       index: index + 1,
-      date: item.date,
+      date: formatDateInDhaka(item.date),
       task: item.title,
       department: item.departmentName,
       priority: item.priority.charAt(0).toUpperCase() + item.priority.slice(1),
@@ -422,7 +405,7 @@ function addDailyLogSheet(workbook: ExcelJS.Workbook, items: ReportSummaryItem[]
   dailyRows.forEach((entry, index) => {
     const row = sheet.addRow({
       task: entry.task,
-      date: entry.date,
+      date: formatDateInDhaka(entry.date),
       progress: entry.progress,
       trackedMinutes: entry.trackedMinutes,
       note: entry.note,
@@ -478,7 +461,7 @@ function addAttendanceSheet(
     const workHours = entry.workingMinutes / 60;
     const status = !entry.checkInAt ? "Absent" : entry.active ? "Not Checked Out" : "Present";
     const row = sheet.addRow({
-      date: entry.date,
+      date: formatDateInDhaka(entry.date),
       checkIn: checkInTime ? checkInTime.toLocaleTimeString("en-BD") : "--",
       checkOut: checkOutTime ? checkOutTime.toLocaleTimeString("en-BD") : "--",
       breakTime: entry.breakMinutes,

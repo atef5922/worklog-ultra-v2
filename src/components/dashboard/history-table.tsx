@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateInDhaka } from "@/lib/utils";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
@@ -112,12 +113,7 @@ function formatHistoryDateParts(value: Date | string) {
       timeZone: "Asia/Dhaka",
       weekday: "long",
     }).format(date),
-    compact: new Intl.DateTimeFormat("en-BD", {
-      timeZone: "Asia/Dhaka",
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    }).format(date),
+    compact: formatDateInDhaka(date),
   };
 }
 
@@ -158,12 +154,7 @@ function formatHistoryTimeParts(value?: Date | string | null) {
   return {
     time: `${hour}:${minute}`,
     meridiem,
-    date: new Intl.DateTimeFormat("en-BD", {
-      timeZone: "Asia/Dhaka",
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    }).format(date),
+    date: formatDateInDhaka(date),
     isSet: true,
     isLive: false,
   };
@@ -957,7 +948,7 @@ export function HistoryTable({
                 </p>
                 <h3 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">{selectedTask.taskTitle}</h3>
                 <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                  {selectedTask.department.name} - {toDateOnly(selectedTask.planDate)}
+                  {selectedTask.department.name} - {formatDateInDhaka(selectedTask.planDate)}
                 </p>
               </div>
               <Button onClick={() => setSelectedTask(null)} size="icon" type="button" variant="ghost">
@@ -1048,14 +1039,14 @@ export function HistoryTable({
                         Total {formatMinutes(selectedTask.updates[0]?.trackedMinutes ?? 0)}
                       </span>
                       <span className="rounded-full bg-[var(--panel-muted)] px-3 py-1 text-[var(--foreground)]">
-                        {toDateOnly(selectedTask.planDate)}
+                        {formatDateInDhaka(selectedTask.planDate)}
                       </span>
                     </div>
                   </div>
                   <div className="mt-4 rounded-2xl border border-white/60 bg-white/75 p-3 text-sm text-slate-700 dark:border-white/10 dark:bg-slate-950/20 dark:text-white/85">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="rounded-full bg-violet-100 px-2 py-1 text-xs font-semibold text-violet-800 dark:bg-white/10 dark:text-white/85">
-                        {toDateOnly(selectedTask.planDate)}
+                        {formatDateInDhaka(selectedTask.planDate)}
                       </span>
                       <span className="text-xs font-semibold">{selectedTask.updates[0]?.completionPercent ?? 0}% complete</span>
                     </div>
@@ -1117,7 +1108,7 @@ export function HistoryTable({
                         <div className="mt-2 space-y-2">
                           {(continuationOverview.dailyLogs ?? []).map((entry) => (
                             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-700 dark:text-white/85" key={`${selectedTask.id}-${entry.date}`}>
-                              <span className="rounded-full bg-violet-100 px-2 py-1 text-violet-800 dark:bg-white/10 dark:text-white/85">{entry.date}</span>
+                              <span className="rounded-full bg-violet-100 px-2 py-1 text-violet-800 dark:bg-white/10 dark:text-white/85">{formatDateInDhaka(entry.date)}</span>
                               <span>{entry.progress}% done</span>
                               <span>{entry.trackedMinutes} min</span>
                               {entry.note ? <span className="text-slate-500 dark:text-white/70">Note: {entry.note}</span> : null}
@@ -1161,7 +1152,7 @@ export function HistoryTable({
                 <p className="text-[0.65rem] font-bold uppercase tracking-[0.2em] text-[#4f5ef7]">Pending Approval</p>
                 <h3 className="mt-2 text-2xl font-semibold text-[var(--foreground)]">{selectedRequest.dailyTask.taskTitle}</h3>
                 <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                  {selectedRequest.requestedBy.name} - {selectedRequest.requestedBy.department?.name ?? "No department"} - {toDateOnly(selectedRequest.dailyTask.planDate)}
+                  {selectedRequest.requestedBy.name} - {selectedRequest.requestedBy.department?.name ?? "No department"} - {formatDateInDhaka(selectedRequest.dailyTask.planDate)}
                 </p>
               </div>
               <Button onClick={() => setSelectedRequest(null)} size="icon" type="button" variant="ghost">

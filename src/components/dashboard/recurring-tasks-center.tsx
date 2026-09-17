@@ -1,9 +1,10 @@
 "use client";
+import { DateInput } from "@/components/ui/date-input";
 
 import { Plus, Repeat2, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { createId } from "@/lib/utils";
+import { createId, toDateOnly } from "@/lib/utils";
 import {
   OTHER_DEPARTMENT_ID,
   deleteRecurringTemplate,
@@ -45,7 +46,7 @@ export function RecurringTasksCenter({
   const [interval, setIntervalValue] = useState("1");
   const [weekdays, setWeekdays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [monthlyDay, setMonthlyDay] = useState(String(new Date().getDate()));
-  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(toDateOnly());
   const [endDate, setEndDate] = useState("");
 
   useEffect(() => {
@@ -90,7 +91,7 @@ export function RecurringTasksCenter({
     setIntervalValue("1");
     setWeekdays([1, 2, 3, 4, 5]);
     setMonthlyDay(String(new Date().getDate()));
-    setStartDate(new Date().toISOString().slice(0, 10));
+    setStartDate(toDateOnly());
     setEndDate("");
     toast.success("Recurring task saved.");
     onSaved?.();
@@ -187,11 +188,11 @@ export function RecurringTasksCenter({
             <div className="space-y-4">
               <div>
                 <Label>Start Date</Label>
-                <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+                <DateInput value={startDate} onValueChange={setStartDate} />
               </div>
               <div>
                 <Label>End Date</Label>
-                <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+                <DateInput value={endDate} onValueChange={setEndDate} />
               </div>
               {recurrenceType === "weekly" ? (
                 <div>

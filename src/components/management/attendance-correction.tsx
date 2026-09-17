@@ -1,5 +1,6 @@
 "use client";
 
+import { DateTimeInput } from "@/components/ui/date-time-input";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -64,8 +65,8 @@ function CorrectionForm({ record }: { record: RecordInput }) {
           return <fieldset key={kind} className="space-y-2">
             <legend className="text-sm font-semibold">{kind === "work" ? "Office sessions" : "Break sessions"}</legend>
             {list.map((s, i) => <div key={s.id ?? i} className="flex flex-wrap gap-2">
-              <input type="datetime-local" step="0.001" aria-label={`${kind} start ${i + 1}`} className={field} value={s.startedAt} required onChange={e => set(prev => prev.map((v, j) => j === i ? { ...v, startedAt: e.target.value } : v))} />
-              <input type="datetime-local" step="0.001" aria-label={`${kind} end ${i + 1}`} className={field} value={s.endedAt} required onChange={e => set(prev => prev.map((v, j) => j === i ? { ...v, endedAt: e.target.value } : v))} />
+              <DateTimeInput step="0.001" aria-label={`${kind} start ${i + 1}`} className={field} value={s.startedAt} required onValueChange={value => set(prev => prev.map((v, j) => j === i ? { ...v, startedAt: value } : v))} />
+              <DateTimeInput step="0.001" aria-label={`${kind} end ${i + 1}`} className={field} value={s.endedAt} required onValueChange={value => set(prev => prev.map((v, j) => j === i ? { ...v, endedAt: value } : v))} />
             </div>)}
             <button className="text-xs text-indigo-500" disabled={list.length >= 50} type="button" onClick={() => set(prev => [...prev, { startedAt: "", endedAt: "" }])}>+ Add missing {kind} session</button>
           </fieldset>;

@@ -1,5 +1,7 @@
 "use client";
 
+import { formatDateTimeInDhaka } from "@/lib/utils";
+import { formatDateInDhaka } from "@/lib/utils";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Building2, CalendarDays, CheckCircle2, Flag, PlayCircle, RotateCcw, Square, Timer, UserRoundCheck, X } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -51,46 +53,17 @@ function formatTrackedMinutes(totalMinutes: number) {
 
 function formatPlanDate(value: string) {
   const parsed = new Date(`${value}T00:00:00+06:00`);
-
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-BD", {
-    timeZone: "Asia/Dhaka",
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(parsed);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const weekday = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", weekday: "long" }).format(parsed);
+  return `${weekday}, ${formatDateInDhaka(parsed)}`;
 }
 
 function formatLogDate(value: string) {
-  const parsed = new Date(`${value}T00:00:00+06:00`);
-
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-BD", {
-    timeZone: "Asia/Dhaka",
-    day: "numeric",
-    month: "short",
-  }).format(parsed);
+  return formatDateInDhaka(value);
 }
 
 function formatActivityDateTime(value: string) {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-
-  return new Intl.DateTimeFormat("en-BD", {
-    timeZone: "Asia/Dhaka",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(parsed);
+  return formatDateTimeInDhaka(value);
 }
 
 /**
@@ -395,7 +368,7 @@ export function TaskDetailsModal({
                               <p className="mt-0.5 text-[0.7rem] text-slate-500">
                                 By {event.actorName}
                                 {completed
-                                  ? ` � ${formatTrackedMinutes(event.trackedMinutes)} recorded`
+                                  ? ` · ${formatTrackedMinutes(event.trackedMinutes)} recorded`
                                   : ""}
                               </p>
                               {detail ? (

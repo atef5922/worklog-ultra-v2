@@ -219,3 +219,92 @@
 .timeValue{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .overEstimate{color:#c51d48;font-weight:600}
 .overEstimate svg{flex:0 0 auto}
+
+/* Compact team KPIs and a lined employee table. */
+@media(min-width:1100px) and (max-width:1749px){
+ .layout{grid-template-columns:minmax(0,1fr) clamp(252px,20vw,274px)}
+}
+.livePanel .panelHeading{min-height:26px;padding:5px 8px 4px}
+.liveKpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:0 8px 4px}
+.liveKpi{display:flex;flex-direction:column;justify-content:space-between;min-width:0;min-height:37px;padding:3px 5px;border:1px solid var(--panel-border);border-radius:5px;background:var(--panel);box-shadow:0 1px 3px #1426540a}
+.liveKpi span{font-size:9px;line-height:10px;color:var(--management-secondary)}
+.liveKpi strong{font-size:16px;line-height:18px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--foreground)}
+.liveKpi[data-kind="available"] strong{color:#087a50}
+.liveKpi[data-kind="task-running"] strong{color:#3455b7}
+.liveKpi[data-kind="in-meeting"] strong{color:#315fc7}
+.livePanel .liveList{flex:1 1 0%;min-height:0;max-height:none;margin:0 8px 5px;padding:0;overflow-x:hidden;overflow-y:auto;border:1px solid var(--panel-border);border-radius:6px;scrollbar-width:thin;scrollbar-color:#9baed2 transparent;overscroll-behavior:contain}
+.livePanel .liveList[data-scrollbar="false"]{scrollbar-width:none}
+.livePanel .liveList[data-scrollbar="false"]::-webkit-scrollbar{display:none}
+.livePanel .liveList::-webkit-scrollbar{width:6px}
+.livePanel .liveList::-webkit-scrollbar-thumb{background:#9baed2;border:1px solid var(--panel);border-radius:8px}
+.livePanel .liveList::-webkit-scrollbar-track{background:var(--panel-muted)}
+.livePanel .liveTable{width:100%;height:auto;table-layout:fixed;border:0;border-spacing:0;border-collapse:separate;border-radius:0;overflow:visible}
+.livePanel .liveTable th{position:sticky;top:0;z-index:1;height:20px;padding:3px 6px;background:var(--panel-muted);color:var(--management-secondary);font-size:9px;line-height:11px;font-weight:600;text-align:left;border-bottom:1px solid var(--panel-border)}
+.livePanel .liveTable td{height:33px;padding:3px 6px;overflow:hidden;white-space:normal;vertical-align:middle;border-bottom:1px solid var(--panel-border)}
+.livePanel .liveTable :is(th,td):first-child{border-right:1px solid var(--panel-border)}
+.livePanel .liveTable td:last-child{padding-left:5px;padding-right:3px}
+.livePanel .liveTable tbody tr:last-child td{border-bottom:0}
+.livePanel .liveTable tbody tr:hover{background:var(--panel-muted)}
+.liveEmployee{display:block;min-width:0}
+.livePanel .avatar{width:22px;height:22px;font-size:8px}
+.liveIdentity{display:block;flex:1;min-width:0}
+.livePanel .liveName{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;line-height:12px;font-weight:650}
+.livePanel .connection{display:block;min-width:0;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--management-secondary);font-size:9px;line-height:10px}
+.livePanel .connection:first-letter{text-transform:uppercase}
+.livePanel .state{display:inline-flex;align-items:center;gap:3px;max-width:100%;padding:0;background:none;font-size:9px;line-height:11px;font-weight:600;white-space:normal}
+.livePanel .state i{width:6px;height:6px;flex:0 0 auto}
+.livePanel .state[data-state="Available"]{color:#087a50}
+.livePanel .state[data-state="Task running"]{color:#3455b7}
+.livePanel .state[data-state="In meeting"]{color:#315fc7}
+.livePanel .state[data-state="On break"]{color:#a45b09}
+.livePanel .state[data-state="Checked out"]{color:#52647e}
+.livePanel .state[data-state="Not checked in"]{color:#985b0c}
+@media(min-width:1100px) and (max-height:670px) and (min-height:560px){
+ .livePanel .panelHeading{padding-top:4px;padding-bottom:3px}
+ .liveKpis{margin-bottom:3px}
+}
+/* Attendance summary: scheduled workday composition. */
+.attendancePeriodSelect{height:24px;max-width:96px;padding:0 6px;border:1px solid var(--panel-border);border-radius:5px;background:var(--panel);color:var(--foreground);font-size:10px;line-height:1;cursor:pointer}
+.attendanceSummaryBody{display:flex;align-items:center;gap:12px;flex:1 1 auto;min-height:0;padding:3px 11px 10px}
+.attendanceDonut{width:99px;height:99px;flex:0 0 99px;border-radius:50%;padding:11px;display:grid;place-items:center}
+.attendanceDonut>div{width:100%;height:100%;border-radius:50%;background:var(--panel);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.attendanceDonut strong{font-size:19px;line-height:22px;font-weight:750;font-variant-numeric:tabular-nums}
+.attendanceDonut span{font-size:9px;line-height:10px;color:var(--management-secondary)}
+.attendanceLegend{flex:1;min-width:0;display:grid;gap:11px;margin:0}
+.attendanceLegend>div{display:flex;align-items:center;justify-content:space-between;gap:4px;min-width:0;font-size:10px;line-height:12px}
+.attendanceLegend dt{display:flex;align-items:center;gap:5px;min-width:0;white-space:nowrap;color:var(--management-secondary)}
+.attendanceLegend dd{margin:0;white-space:nowrap;font-weight:700;font-variant-numeric:tabular-nums}
+.attendanceLegend dd span{font-weight:500;color:var(--management-secondary)}
+.attendanceLegend i{width:7px;height:7px;display:inline-block;flex:0 0 7px;border-radius:50%}
+.attendancePresentDot{background:#20ad78}
+.attendanceAbsentDot{background:#ed6774}
+.attendanceLateDot{background:#f1a23b}
+@media(min-width:1100px) and (max-height:670px) and (min-height:560px){
+ .attendanceSummaryBody{padding-bottom:5px}
+ .attendanceDonut{width:88px;height:88px;flex-basis:88px}
+ .attendanceLegend{gap:8px}
+}
+
+/* Give task names more room only when the date and status remain readable. */
+@media(min-width:1350px){
+ .tasks{--task-col-2:25%;--task-col-3:15%;--task-col-4:13%;--task-col-6:7%;--task-col-8:11%}
+}
+@media(min-width:1500px){
+ .tasks{--task-col-2:27%;--task-col-8:9%}
+}
+@media(max-width:700px){
+ .tasks{--task-col-2:19%;--task-col-8:14%}
+}
+
+/* Reveal the two dense table scrollbars only while interacting with them. */
+.dashboard .hoverScrollbar{scrollbar-color:transparent transparent}
+.dashboard .hoverScrollbar:is(:hover,:focus-visible){scrollbar-color:#9baed2 transparent}
+.hoverScrollbar::-webkit-scrollbar-thumb{background:transparent;border-color:transparent}
+.hoverScrollbar::-webkit-scrollbar-track{background:transparent}
+.hoverScrollbar:is(:hover,:focus-visible)::-webkit-scrollbar-thumb{background:#9baed2;border:1px solid var(--panel)}
+.hoverScrollbar:is(:hover,:focus-visible)::-webkit-scrollbar-track{background:var(--panel-muted)}
+@media(hover:none){
+ .dashboard .hoverScrollbar{scrollbar-color:#9baed2 transparent}
+ .hoverScrollbar::-webkit-scrollbar-thumb{background:#9baed2;border:1px solid var(--panel)}
+ .hoverScrollbar::-webkit-scrollbar-track{background:var(--panel-muted)}
+}

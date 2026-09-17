@@ -2,7 +2,7 @@ import { authenticate, AccessError, fail } from "@/lib/management/server";
 import { can } from "@/lib/auth/policy";
 import { dashboardData } from "@/lib/management/dashboard-data";
 import { exportResponse, type ReportSheet } from "@/lib/management/export";
-import { formatDateTimeInDhaka, formatMinutes } from "@/lib/utils";
+import { formatDateInDhaka, formatDateTimeInDhaka, formatMinutes } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -19,8 +19,8 @@ export async function GET(request: Request) {
     const excelSheets: ReportSheet[] = [
       {
         name: "Tasks",
-        columns: ["Task", "Employee", "Department", "Project", "Client", "Priority", "Status", "Deadline (UTC)", "Checklist %", "Estimate minutes", "Saved task minutes"],
-        rows: data.taskRows.map((task) => [task.title, task.employee, task.department, task.project, task.client, task.priority, task.status, task.deadline, task.progress, task.estimatedMinutes, task.trackedMinutes]),
+        columns: ["Task", "Employee", "Department", "Project", "Client", "Priority", "Status", "Deadline (Dhaka)", "Checklist %", "Estimate minutes", "Saved task minutes"],
+        rows: data.taskRows.map((task) => [task.title, task.employee, task.department, task.project, task.client, task.priority, task.status, task.deadline ? formatDateTimeInDhaka(task.deadline) : "Not set", task.progress, task.estimatedMinutes, task.trackedMinutes]),
       },
       {
         name: "Employee summary",
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
       {
         pdf: {
           subtitle: "Team performance, task progress and attendance overview",
-          period: `${data.from} to ${data.to}`,
+          period: `${formatDateInDhaka(data.from)} to ${formatDateInDhaka(data.to)}`,
           scope: "Permission-scoped management data",
           generatedAt: data.generatedAt,
           metrics: [

@@ -1,3 +1,4 @@
+import { formatDateInDhaka } from "@/lib/utils";
 import { serializeAttendanceRecord } from "@/lib/attendance-record";
 import { CalendarCheck2, Check, CheckCircle2, ClipboardList, Clock3, PlayCircle, TimerReset } from "lucide-react";
 import { PanelHeader } from "@/components/dashboard/panel-header";
@@ -80,13 +81,8 @@ function formatHoursAndMinutes(hoursLabel: string) {
 }
 
 function formatDashboardDate(value: Date) {
-  return new Intl.DateTimeFormat("en-BD", {
-    timeZone: "Asia/Dhaka",
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(value);
+  const weekday = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", weekday: "long" }).format(value);
+  return `${weekday}, ${formatDateInDhaka(value)}`;
 }
 
 function formatTimeOnly(value?: Date | null) {

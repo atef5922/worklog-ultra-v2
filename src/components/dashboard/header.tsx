@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateInDhaka } from "@/lib/utils";
 import Link from "next/link";
 import { Bell, ChevronDown, ChevronLeft, Clock3, HelpCircle, LogOut, MessageSquareMore, Settings } from "lucide-react";
 import { usePathname } from "next/navigation";
@@ -150,12 +151,7 @@ export function DashboardHeader({
           timeZone: "Asia/Dhaka",
           weekday: "short",
         }).format(now),
-        date: new Intl.DateTimeFormat("en-BD", {
-          timeZone: "Asia/Dhaka",
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        }).format(now),
+        date: formatDateInDhaka(now),
       };
 
       // Only update state if the time actually changed
@@ -371,7 +367,7 @@ export function DashboardHeader({
       kind: "assignment",
       id: item.taskId,
       title: item.taskTitle,
-      subtitle: `${item.assigneeName} Â· ${item.assigneeDepartmentName}`,
+      subtitle: `${item.assigneeName} · ${item.assigneeDepartmentName}`,
       body: item.note ? item.note : `Tracked time: ${Math.max(0, item.trackedMinutes)} minutes`,
       timeLabel: new Intl.DateTimeFormat("en-BD", {
         timeZone: "Asia/Dhaka",
@@ -400,8 +396,8 @@ export function DashboardHeader({
       title: item.taskTitle,
       subtitle:
         item.kind === "manager_review"
-          ? `${item.employeeName ?? "Employee"} Ã‚Â· ${item.employeeDepartmentName ?? item.departmentName}`
-          : `${item.departmentName} Ã‚Â· ${item.reviewerName ?? "Team Head"}`,
+          ? `${item.employeeName ?? "Employee"} · ${item.employeeDepartmentName ?? item.departmentName}`
+          : `${item.departmentName} · ${item.reviewerName ?? "Team Head"}`,
       body:
         item.kind === "manager_review"
           ? item.reason
@@ -438,7 +434,7 @@ export function DashboardHeader({
       kind: "notice",
       id: item.id,
       title: item.title,
-      subtitle: `${item.departmentName} Â· by ${item.authorName}`,
+      subtitle: `${item.departmentName} · by ${item.authorName}`,
       body: item.body,
       timeLabel: item.publishedAt
         ? new Intl.DateTimeFormat("en-BD", {
@@ -601,7 +597,7 @@ export function DashboardHeader({
                         >
                           <p className="truncate text-sm font-semibold text-[var(--foreground)]">{item.taskTitle}</p>
                           <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-                            {item.assigneeName} Â· {item.status === "done" ? "Completed" : "Updated"}
+                            {item.assigneeName} · {item.status === "done" ? "Completed" : "Updated"}
                           </p>
                         </button>
                       ))}
@@ -621,7 +617,7 @@ export function DashboardHeader({
                           <p className="truncate text-sm font-semibold text-[var(--foreground)]">{item.taskTitle}</p>
                           <p className="mt-1 text-xs text-[var(--muted-foreground)]">
                             {item.kind === "manager_review"
-                              ? `${item.employeeName ?? "Employee"} Ã‚Â· needs approval`
+                              ? `${item.employeeName ?? "Employee"} · needs approval`
                               : `Request ${item.status}`}
                           </p>
                         </button>

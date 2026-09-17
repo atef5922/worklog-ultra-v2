@@ -1,3 +1,5 @@
+import { formatDateInDhaka } from "@/lib/utils";
+import { DateInput } from "@/components/ui/date-input";
 import Link from "next/link";
 import { CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Clock3, FileClock, PlayCircle, Search } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -25,12 +27,7 @@ function normalizeDateParam(value?: string | string[]) {
 }
 
 function formatRangeDate(value: string) {
-  return new Intl.DateTimeFormat("en-BD", {
-    timeZone: "Asia/Dhaka",
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(`${value}T00:00:00+06:00`));
+  return formatDateInDhaka(value);
 }
 
 function formatRangeLabel(from: string, to: string) {
@@ -150,13 +147,13 @@ export default async function ReportPage({
             <label className={fieldLabelClass} htmlFor="report-from">
               From
             </label>
-            <input className={dateFieldClass} defaultValue={rangeFrom} id="report-from" name="from" type="date" />
+            <DateInput className={dateFieldClass} defaultValue={rangeFrom} id="report-from" name="from" />
           </div>
           <div>
             <label className={fieldLabelClass} htmlFor="report-to">
               To
             </label>
-            <input className={dateFieldClass} defaultValue={rangeTo} id="report-to" name="to" type="date" />
+            <DateInput className={dateFieldClass} defaultValue={rangeTo} id="report-to" name="to" />
           </div>
           <button
             className="button-force-white inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#4f5ef7] px-3.5 text-[0.82rem] font-semibold text-white shadow-[0_10px_22px_rgba(79,94,247,0.24)] transition hover:bg-[#4453eb]"

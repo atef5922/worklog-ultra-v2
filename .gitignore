@@ -74,3 +74,7 @@ next-env.d.ts
 
 # Generated PDF validation artifacts
 /tmp/pdfs/
+
+# Local debugging screenshots and generated temporary files
+/.dbg/
+/tmp/

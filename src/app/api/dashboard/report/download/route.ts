@@ -5,7 +5,7 @@ import { exportResponse, type ReportSheet } from "@/lib/management/export";
 import { fail, AccessError } from "@/lib/management/server";
 import { buildReportSummary } from "@/lib/report-summary";
 import { getHistoryData } from "@/lib/worklog";
-import { formatMinutes, toDateOnly } from "@/lib/utils";
+import { formatDateInDhaka, formatMinutes } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -31,12 +31,12 @@ export async function GET(request: Request) {
       {
         name: "Tasks",
         columns: ["Task", "Date", "Description", "Status", "Priority", "Tracked minutes", "Completion note"],
-        rows: summary.items.map((task) => [task.title, task.date, task.description, task.status, task.priority, task.trackedMinutes, task.note]),
+        rows: summary.items.map((task) => [task.title, formatDateInDhaka(task.date), task.description, task.status, task.priority, task.trackedMinutes, task.note]),
       },
       {
         name: "Attendance",
         columns: ["Date", "Actual minutes", "Counted minutes", "Break minutes", "Included break", "Extra break", "Outside minutes", "Overtime minutes"],
-        rows: attendanceRows.map(({ record, metrics }) => [toDateOnly(record.attendanceDate), metrics.activeMinutes, metrics.workingMinutes, metrics.breakMinutes, metrics.includedBreakMinutes, metrics.excessBreakMinutes, metrics.outsideMinutes, metrics.overtimeMinutes]),
+        rows: attendanceRows.map(({ record, metrics }) => [formatDateInDhaka(record.attendanceDate), metrics.activeMinutes, metrics.workingMinutes, metrics.breakMinutes, metrics.includedBreakMinutes, metrics.excessBreakMinutes, metrics.outsideMinutes, metrics.overtimeMinutes]),
       },
     ];
     const total = (key: "activeMinutes" | "workingMinutes" | "breakMinutes" | "excessBreakMinutes" | "outsideMinutes" | "overtimeMinutes") =>
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
       {
         pdf: {
           subtitle: user.name + " - task and attendance record",
-          period: `${from} to ${to}`,
+          period: `${formatDateInDhaka(from)} to ${formatDateInDhaka(to)}`,
           scope: "Personal report",
           metrics: [
             { label: "Planned tasks", value: summary.items.length, note: "Selected period" },
@@ -71,7 +71,7 @@ export async function GET(request: Request) {
             widths: [1.8, 0.95, 1.15, 2.25, 0.85, 1.45],
             rows: summary.items.map((task) => [
               task.title,
-              task.date,
+              formatDateInDhaka(task.date),
               [titleCase(task.status), titleCase(task.priority)].join("\n"),
               task.description || "-",
               formatMinutes(task.trackedMinutes),
@@ -83,7 +83,7 @@ export async function GET(request: Request) {
             columns: ["Date", "Actual", "Counted", "Break", "Included Break", "Extra Break", "Outside", "Overtime"],
             widths: [1.15, 1, 1, 1, 1.2, 1.05, 1, 1],
             rows: attendanceRows.map(({ record, metrics }) => [
-              toDateOnly(record.attendanceDate),
+              formatDateInDhaka(record.attendanceDate),
               formatMinutes(metrics.activeMinutes),
               formatMinutes(metrics.workingMinutes),
               formatMinutes(metrics.breakMinutes),
