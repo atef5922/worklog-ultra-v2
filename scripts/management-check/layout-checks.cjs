@@ -120,7 +120,7 @@ module.exports=async function layoutChecks(browser,base,out,errors,fixture){
    console.log('PASS viewport fit, bordered scroll tables, sticky headers, live scrolling, sort and export',width,height);
   }finally{await page.close();}
  }
- for(const [variant,count] of [['five',5],['six',6]]){
+ for(const [variant,count] of [['five',5],['seven',7]]){
   const sample=await browser.newPage({viewport:{width:1365,height:640}});
   try{
    await sample.goto(base+'/?'+variant);

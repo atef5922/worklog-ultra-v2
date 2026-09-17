@@ -4,7 +4,7 @@ import {ManagementDashboard} from '../../src/components/management/management-da
 import {fixture} from './fixture';
 import {TaskScreenshotMonitor} from '../../src/components/dashboard/task-screenshot-monitor';
 const params=new URLSearchParams(location.search);
-const empty=params.has('empty'),liveCount=params.has('five')?5:params.has('six')?6:null;
+const empty=params.has('empty'),liveCount=params.has('five')?5:params.has('seven')?7:null;
 const data=empty?{...fixture,taskRows:[],employees:[],departments:[],live:[],kpis:{employees:0,present:0,tasks:0,completed:0,inProgress:0,pending:0,overdue:0}}:liveCount?{...fixture,live:fixture.live.slice(0,liveCount)}:fixture;
 function Fixture(){
  const [expanded,setExpanded]=useState(false);

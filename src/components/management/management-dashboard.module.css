@@ -308,3 +308,54 @@
  .hoverScrollbar::-webkit-scrollbar-thumb{background:#9baed2;border:1px solid var(--panel)}
  .hoverScrollbar::-webkit-scrollbar-track{background:var(--panel-muted)}
 }
+
+/* Compact the desktop controls and KPIs to give the dashboard panels more height. */
+@media(min-width:1100px) and (min-height:560px){
+ .dashboard{gap:5px}
+ .filters{gap:5px;padding:4px 7px}
+ .filters label{gap:1px;line-height:12px}
+ .filters input,.filters select,.filters .secondary{height:25px}
+ .kpis{gap:6px}
+ .kpi{min-height:49px;padding:3px 6px;gap:5px}
+ .kpi h2{line-height:12px}
+ .kpi strong{font-size:19px;line-height:20px}
+ .kpi p{line-height:11px}
+ .icon{width:26px;height:26px}
+ .icon svg{width:16px;height:16px}
+}
+@media(min-width:1100px) and (min-height:671px){
+ .main{grid-template-rows:minmax(0,1fr) clamp(152px,25vh,186px)}
+ .right{grid-template-rows:minmax(0,1fr) 168px}
+}
+
+/* Compact, tinted KPI cards with the value and label on one line. */
+.kpi{--kpi-accent:#2363d9;background:color-mix(in srgb,var(--panel) 89%,var(--kpi-accent) 11%);border-color:color-mix(in srgb,var(--panel-border) 78%,var(--kpi-accent) 22%)}
+.kpi[data-tone="green"]{--kpi-accent:#098659}
+.kpi[data-tone="purple"]{--kpi-accent:#783bd5}
+.kpi[data-tone="orange"]{--kpi-accent:#a85c0a}
+.kpi[data-tone="red"]{--kpi-accent:#c5294c}
+.kpi .icon{background:color-mix(in srgb,var(--panel) 78%,var(--kpi-accent) 22%);color:var(--kpi-accent)}
+.kpiContent{min-width:0;flex:1}
+.kpiHeadline{display:flex;align-items:baseline;gap:5px;min-width:0;white-space:nowrap}
+.kpiHeadline strong{flex:none;color:var(--kpi-accent)}
+.kpiHeadline h2{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:650}
+.kpiContent p{margin-top:2px}
+:global(html[data-theme="dark"]) .kpi[data-tone="blue"]{--kpi-accent:#82b2ff}
+:global(html[data-theme="dark"]) .kpi[data-tone="green"]{--kpi-accent:#65d6a4}
+:global(html[data-theme="dark"]) .kpi[data-tone="purple"]{--kpi-accent:#bea0ff}
+:global(html[data-theme="dark"]) .kpi[data-tone="orange"]{--kpi-accent:#f0b76a}
+:global(html[data-theme="dark"]) .kpi[data-tone="red"]{--kpi-accent:#fa8ea3}
+@media(min-width:1100px) and (min-height:560px){
+ .kpi{min-height:44px}
+}
+
+/* A quiet signal pulse marks the live team panel without moving its layout. */
+.liveIcon{position:relative;display:inline-grid;flex:0 0 15px;width:15px;height:15px;place-items:center;color:#3375d6}
+.liveIcon svg{position:relative;z-index:1}
+.liveIcon::after{content:"";position:absolute;inset:-4px;border:1px solid currentColor;border-radius:50%;pointer-events:none;animation:liveSignal 2.6s ease-out infinite}
+@keyframes liveSignal{
+ 0%{opacity:0;transform:scale(.55)}
+ 22%{opacity:.5}
+ 75%,100%{opacity:0;transform:scale(1.4)}
+}
+@media(prefers-reduced-motion:reduce){.liveIcon::after{animation:none;opacity:0}}

@@ -9,7 +9,7 @@
      value is set alongside the fluid scale below. */
   --topbar-height: 3.125rem;
   /* Compact expanded rail; long management labels still fit without clipping. */
-  --sidebar-width-expanded: 14rem;
+  --sidebar-width-expanded: 13.25rem;
   --sidebar-width: var(--sidebar-width-expanded);
   --sidebar-width-collapsed: 4.1667rem;
   --sidebar-visual-width: var(--sidebar-width);
@@ -889,6 +889,8 @@ html[data-sidebar-peek="true"] {
 }
 
 .dashboard-sidebar [data-sidebar-row] {
+  padding-inline: 0.5rem;
+  column-gap: 0.5rem;
   transition:
     background-color 0.18s ease,
     color 0.18s ease;
