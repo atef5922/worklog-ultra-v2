@@ -1,10 +1,8 @@
 import { formatDateInDhaka } from "@/lib/utils";
-import { DateInput } from "@/components/ui/date-input";
-import Link from "next/link";
-import { CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, Clock3, FileClock, PlayCircle, Search } from "lucide-react";
+import { CheckCircle2, ClipboardList, Clock3, FileClock, PauseCircle, PlayCircle } from "lucide-react";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { PanelHeader } from "@/components/dashboard/panel-header";
-import { ReportDownloadButton } from "@/components/dashboard/report-download-button";
+import { ReportDateFilter } from "@/components/dashboard/report-date-filter";
 import { ReportEntriesTable } from "@/components/dashboard/report-entries-table";
 import { requireEmployee } from "@/lib/auth/server";
 import { buildReportSummary } from "@/lib/report-summary";
@@ -38,20 +36,6 @@ function formatRangeLabel(from: string, to: string) {
   return `${formatRangeDate(from)} to ${formatRangeDate(to)}`;
 }
 
-/**
- * Rows per page. The entries panel is sized to show exactly this many without a
- * scroller — paging is what handles a long range, so nothing here ever scrolls.
- */
-const PAGE_SIZE = 5;
-const dateFieldClass =
-  "h-9 w-full rounded-xl border border-[var(--panel-border)] bg-[var(--panel-muted)] px-2.5 text-[0.8rem] text-[var(--foreground)] outline-none transition focus:border-[#4f5ef7]";
-const fieldLabelClass =
-  "mb-1 block text-[0.62rem] font-bold uppercase tracking-[0.16em] text-[var(--muted-foreground)]";
-const pagerButtonClass =
-  "inline-flex h-7 items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--panel)] px-2 text-[0.7rem] font-semibold text-[var(--foreground)] transition hover:border-[#4f5ef7]/40 hover:bg-[var(--panel-alt)]";
-const pagerDisabledClass =
-  "inline-flex h-7 cursor-not-allowed items-center gap-1 rounded-lg border border-[var(--panel-border)] bg-[var(--panel-muted)] px-2 text-[0.7rem] font-semibold text-[var(--muted-foreground)] opacity-60";
-
 export default async function ReportPage({
   searchParams,
 }: {
@@ -60,11 +44,10 @@ export default async function ReportPage({
     from?: string | string[];
     to?: string | string[];
     taskId?: string | string[];
-    page?: string | string[];
   }>;
 }) {
   const user = await requireEmployee();
-  const { date, from, to, taskId, page } = await searchParams;
+  const { date, from, to, taskId } = await searchParams;
 
   const selectedDate = normalizeDateParam(date) ?? toDateOnly();
   const requestedFrom = normalizeDateParam(from) ?? selectedDate;
@@ -78,27 +61,11 @@ export default async function ReportPage({
   const historyTasks = await getHistoryData(user.id, rangeFrom, rangeTo);
   const summary = buildReportSummary(historyTasks);
 
-  const totalPages = Math.max(1, Math.ceil(summary.items.length / PAGE_SIZE));
-  const requestedPage = Number(Array.isArray(page) ? page[0] : page);
-  // Clamp rather than 404: a stale ?page= from a wider range must still render.
-  const currentPage = Math.min(Math.max(Number.isFinite(requestedPage) ? requestedPage : 1, 1), totalPages);
-  const firstIndex = (currentPage - 1) * PAGE_SIZE;
-  const pageItems = summary.items.slice(firstIndex, firstIndex + PAGE_SIZE);
-
-  function pageHref(targetPage: number) {
-    const params = new URLSearchParams({ from: rangeFrom, to: rangeTo });
-    if (targetPage > 1) {
-      params.set("page", String(targetPage));
-    }
-
-    return `/dashboard/report?${params.toString()}`;
-  }
-
   const summaryTiles = [
     {
       accent: "accent-indigo",
       icon: ClipboardList,
-      label: "Tasks",
+      label: "Entries",
       tone: "bg-[#4f5ef7]/10 text-[#4f5ef7]",
       value: String(summary.totals.totalTasks),
       valueTone: "text-[var(--foreground)]",
@@ -120,6 +87,14 @@ export default async function ReportPage({
       valueTone: "text-sky-600",
     },
     {
+      accent: "accent-amber",
+      icon: PauseCircle,
+      label: "Pending",
+      tone: "bg-amber-500/10 text-amber-500",
+      value: String(summary.totals.pendingTasks),
+      valueTone: "text-amber-600",
+    },
+    {
       accent: "accent-violet",
       icon: Clock3,
       label: "Tracked Time",
@@ -138,37 +113,7 @@ export default async function ReportPage({
     >
       <PageHeader
         action={
-          <form
-            action="/dashboard/report"
-            className="grid grid-cols-2 gap-2 sm:grid-cols-[9rem_9rem_auto_auto] sm:items-end"
-            method="get"
-          >
-          <div>
-            <label className={fieldLabelClass} htmlFor="report-from">
-              From
-            </label>
-            <DateInput className={dateFieldClass} defaultValue={rangeFrom} id="report-from" name="from" />
-          </div>
-          <div>
-            <label className={fieldLabelClass} htmlFor="report-to">
-              To
-            </label>
-            <DateInput className={dateFieldClass} defaultValue={rangeTo} id="report-to" name="to" />
-          </div>
-          <button
-            className="button-force-white inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#4f5ef7] px-3.5 text-[0.82rem] font-semibold text-white shadow-[0_10px_22px_rgba(79,94,247,0.24)] transition hover:bg-[#4453eb]"
-            type="submit"
-          >
-            <Search className="h-3.5 w-3.5" />
-            View
-          </button>
-          <ReportDownloadButton
-            fallbackFrom={rangeFrom}
-            fallbackTo={rangeTo}
-            fromInputId="report-from"
-            toInputId="report-to"
-          />
-          </form>
+          <ReportDateFilter key={`${rangeFrom}:${rangeTo}`} from={rangeFrom} to={rangeTo} />
         }
         icon={FileClock}
         subtitle={formatRangeLabel(rangeFrom, rangeTo)}
@@ -179,7 +124,7 @@ export default async function ReportPage({
           before the named breakpoints, so `sm:grid-cols-2` was winning at desktop
           width and the tiles stayed stacked two-by-two, eating a row of height
           the table needed. */}
-      <section className="grid shrink-0 gap-2 sm:grid-cols-2 lg:grid-cols-4" data-page-section>
+      <section className="grid shrink-0 gap-2 sm:grid-cols-2 lg:grid-cols-5" data-page-section>
         {summaryTiles.map((tile) => {
           const Icon = tile.icon;
 
@@ -221,46 +166,9 @@ export default async function ReportPage({
           tone="bg-sky-500/10 text-sky-500"
         />
 
-        <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[var(--panel-border)]">
-          <ReportEntriesTable firstIndex={firstIndex} items={pageItems} />
+        <div className="mt-2 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-[var(--panel-border)] bg-[var(--panel)]">
+          <ReportEntriesTable firstIndex={0} items={summary.items} />
         </div>
-
-        {totalPages > 1 ? (
-          <div className="mt-2 flex shrink-0 items-center justify-between gap-2">
-            <p className="font-mono text-[0.68rem] font-semibold tabular-nums text-[var(--muted-foreground)]">
-              {firstIndex + 1}-{firstIndex + pageItems.length} of {summary.items.length}
-            </p>
-            <div className="flex items-center gap-1.5">
-              {/* Rendered as a span when there is nowhere to go, so a dead end is
-                  never a clickable link. */}
-              {currentPage > 1 ? (
-                <Link className={pagerButtonClass} href={pageHref(currentPage - 1)}>
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                  Prev
-                </Link>
-              ) : (
-                <span className={pagerDisabledClass}>
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                  Prev
-                </span>
-              )}
-              <span className="px-1 font-mono text-[0.68rem] font-semibold tabular-nums text-[var(--muted-foreground)]">
-                {currentPage} / {totalPages}
-              </span>
-              {currentPage < totalPages ? (
-                <Link className={pagerButtonClass} href={pageHref(currentPage + 1)}>
-                  Next
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </Link>
-              ) : (
-                <span className={pagerDisabledClass}>
-                  Next
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </span>
-              )}
-            </div>
-          </div>
-        ) : null}
       </section>
     </div>
   );

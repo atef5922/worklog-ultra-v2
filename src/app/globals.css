@@ -343,6 +343,27 @@ html[data-theme="dark"] .auth-backdrop {
   }
 }
 
+/* My History fits every viewport; only the record list scrolls. */
+body:has([data-history-page]) {
+  overflow: hidden;
+}
+
+body:has([data-history-page]) .min-h-dvh {
+  height: 100dvh;
+  min-height: 0;
+}
+
+.dashboard-scroll:has([data-history-page]) {
+  overflow: hidden;
+}
+
+.dashboard-shell:has([data-history-page]) {
+  display: flex;
+  flex: 1 1 0%;
+  min-height: 0;
+  flex-direction: column;
+}
+
 /*
  * Every in-panel scroller on the dashboard.
  *

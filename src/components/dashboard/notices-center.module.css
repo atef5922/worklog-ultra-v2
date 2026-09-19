@@ -1,0 +1,78 @@
+.activePanel {
+  --notice-surface: #ffffff;
+  --notice-surface-soft: #f8faff;
+  --notice-border: #dce3f1;
+  --notice-title: #20304b;
+  --notice-body: #47556c;
+  --notice-muted: #64738b;
+  --notice-accent: #535fc4;
+  --notice-chip: #edf0ff;
+  --notice-chip-border: #dce1fb;
+  --notice-hover: #b7c2e9;
+  --foreground: var(--notice-title);
+  border: 1px solid var(--notice-border);
+  background: linear-gradient(110deg, #f7f8ff, #f1f6fc);
+  box-shadow: 0 8px 28px rgb(34 55 94 / 6%), inset 0 1px 0 rgb(255 255 255 / 85%);
+}
+
+.notice {
+  border: 1px solid var(--notice-border);
+  background: linear-gradient(115deg, var(--notice-surface), var(--notice-surface-soft));
+  box-shadow: 0 2px 5px rgb(34 55 94 / 3%);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.notice:hover {
+  border-color: var(--notice-hover);
+  box-shadow: 0 4px 12px rgb(34 55 94 / 6%);
+}
+
+.icon,
+.number {
+  color: var(--notice-accent);
+  background: var(--notice-chip);
+  box-shadow: inset 0 0 0 1px var(--notice-chip-border);
+}
+
+.activeCount {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--notice-chip-border);
+  border-radius: 999px;
+  background: var(--notice-chip);
+  color: var(--notice-accent);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.activeCount::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.title { color: var(--notice-title); }
+.metadata { color: var(--notice-accent); }
+.date { color: var(--notice-muted); }
+.body { color: var(--notice-body); }
+.empty { border-color: var(--notice-border); background: var(--notice-surface); color: var(--notice-muted); }
+
+:global(html[data-theme='dark']) .activePanel {
+  --notice-surface: #1d293d;
+  --notice-surface-soft: #202c43;
+  --notice-border: #35415b;
+  --notice-title: #e6ecf8;
+  --notice-body: #c2cde0;
+  --notice-muted: #a1afc7;
+  --notice-accent: #bac3ff;
+  --notice-chip: #2c3655;
+  --notice-chip-border: #404d73;
+  --notice-hover: #6574a6;
+  background: linear-gradient(110deg, #192237, #182536);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 12%), inset 0 1px 0 rgb(255 255 255 / 3%);
+}

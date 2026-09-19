@@ -6,9 +6,14 @@ import {taskActivityDisplay} from '@/lib/management/task-activity-display';
 import {readChecklist} from '@/lib/management/task-insights';
 import {getReadableTaskDescription} from '@/lib/report-summary';
 import {projectTaskTimers} from '@/lib/task-timer-projection';
-import {formatDateTimeInDhaka, formatMinutes} from '@/lib/utils';
+import {formatDateTimeInDhaka, toDateOnly} from '@/lib/utils';
 import {
   Activity,
+  CalendarDays,
+  Circle,
+  Flag,
+  History,
+  ListChecks,
   CheckCircle2,
   ChevronDown,
   Clock3,
@@ -18,6 +23,13 @@ import {
 } from 'lucide-react';
 import {notFound} from 'next/navigation';
 import styles from './task-activity-log.module.css';
+
+function formatDuration(minutes: number) {
+  const total = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(total / 60);
+  const remainder = total % 60;
+  return hours ? [hours + ' hr', remainder ? remainder + ' min' : ''].filter(Boolean).join(' ') : total + ' min';
+}
 
 export async function TaskRecord({actor, taskId}: {actor: AccessActor; taskId: string}) {
   const stored = await db.dailyTask.findFirst({
@@ -108,134 +120,135 @@ export async function TaskRecord({actor, taskId}: {actor: AccessActor; taskId: s
       );
     });
 
+  const statusLabel = (status: string) => status === 'done' ? 'Completed' : status === 'in_progress' ? 'In progress' : 'Pending';
+  // Keep the query chronological for current status; display history newest first.
+  const dailyRecords = [...task.updates].reverse();
+  const completionEvents = [...task.activityEvents].reverse();
+  const currentStatus = task.updates.at(-1)?.status ?? 'pending';
+  const trackedTime = formatDuration(task.updates.reduce((sum, update) => sum + update.trackedMinutes, 0));
+  const completedItems = checklist.filter((item) => item.done).length;
+  const timeOnly = (date: Date) => new Intl.DateTimeFormat('en-US', {timeZone: 'Asia/Dhaka', hour: 'numeric', minute: '2-digit', hour12: true}).format(date);
+  const renderTime = (date: Date | null, workday: Date) => date ? (
+    <time dateTime={date.toISOString()} title={fmt(date)} aria-label={fmt(date)} className={styles.timestamp}>
+      <span>{timeOnly(date)}</span>
+      {toDateOnly(date) !== toDateOnly(workday) && <small>{formatDateInDhaka(date)}</small>}
+    </time>
+  ) : <span className={styles.muted}>Not set</span>;
+
   return (
-    <div className={styles.page} data-fit-viewport>
-      <section className={card + ' ' + styles.summaryCard}>
-        <p className="text-xs font-medium uppercase tracking-wide text-indigo-500">Task record</p>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-3"><h1 className="text-2xl font-semibold">{task.taskTitle}</h1>{canComment && <TaskCommentsButton taskId={task.id} taskTitle={task.taskTitle} />}</div>
-        <p className="mt-3 whitespace-pre-wrap text-sm text-[var(--muted-foreground)]">
-          {getReadableTaskDescription(task.taskDescription)}
-        </p>
+    <div className={styles.page} data-fit-viewport data-task-record>
+      <section className={card + ' ' + styles.summaryCard} aria-labelledby="task-title">
+        <div className={styles.summaryTop}>
+          <div className={styles.taskIntro}>
+            <h1 id="task-title" className={styles.title}>{task.taskTitle}</h1>
+            <p className={styles.description}>{getReadableTaskDescription(task.taskDescription) || 'No description added.'}</p>
+            <div className={styles.badges}>
+              <span className={styles.status} data-status={currentStatus}><span />{statusLabel(currentStatus)}</span>
+              <span className={styles.priority} data-priority={task.priority}><Flag size={12} aria-hidden="true" />{task.priority} priority</span>
+              <span className={styles.planned}><CalendarDays size={15} aria-hidden="true" /><span>Planned date</span><time dateTime={toDateOnly(task.planDate)}>{formatDateInDhaka(task.planDate)}</time></span>
+            </div>
+          </div>
+          <div className={styles.summaryAside}>
+            {canComment && <TaskCommentsButton taskId={task.id} taskTitle={task.taskTitle} />}
+            <div className={styles.trackedTime}>
+              <span>Tracked</span>
+              <strong>{trackedTime}</strong>
+              {!!task.estimatedMinutes && <small>Est. {formatDuration(task.estimatedMinutes)}</small>}
+            </div>
+          </div>
+        </div>
         <dl className={styles.metadataGrid}>
           {[
             ['Owner', task.user.name],
             ['Department', task.department.name],
             ['Assigned by', task.assigner?.name ?? 'Self'],
-            ['Project', task.projectName ?? 'Not set'],
-            ['Client', task.clientName ?? 'Not set'],
+            ['Project', task.projectName || 'Not set'],
+            ['Client', task.clientName || 'Not set'],
             ['Deadline', fmt(task.dueAt)],
-            ['Estimated time', task.estimatedMinutes ? formatMinutes(task.estimatedMinutes) : 'Not set'],
-            ['Priority', task.priority],
-            ['Planned date', formatDateInDhaka(task.planDate)],
             ['Created', fmt(task.createdAt)],
-            ['Current status', task.updates.at(-1)?.status ?? 'pending'],
-            ['Tracked time', formatMinutes(task.updates.reduce((sum, update) => sum + update.trackedMinutes, 0))],
             ['Task ID', task.id],
           ].map(([label, value]) => (
-            <div key={label}>
-              <dt className="text-xs text-[var(--muted-foreground)]">{label}</dt>
-              <dd className="mt-1 break-all">{value}</dd>
+            <div key={label} className={label === 'Task ID' ? styles.taskId : undefined}>
+              <dt>{label}</dt><dd>{value}</dd>
             </div>
           ))}
         </dl>
       </section>
 
-      <section className={card + ' ' + styles.checklistCard}>
-        <h2 className="font-semibold">Checklist / subtasks</h2>
-        <div className={styles.cardBodyScroll}>
-        {checklist.length ? (
-          checklist.map((item) => (
-            <p className="mt-2 text-sm" key={item.id}>
-              <span className="mr-2 text-[var(--muted-foreground)]">{item.done ? 'Completed' : 'Open'}</span>
-              {item.title}
-            </p>
-          ))
-        ) : (
-          <p className="mt-2 text-sm text-[var(--muted-foreground)]">No checklist added.</p>
-        )}
+      <section className={card + ' ' + styles.recordsCard} aria-labelledby="daily-records-title">
+        <div className={styles.sectionHeader}>
+          <div className={styles.sectionHeading}><span className={styles.icon}><CalendarDays size={16} aria-hidden="true" /></span><h2 id="daily-records-title">Daily work records</h2></div>
+          <span className={styles.count}>{task.updates.length} {task.updates.length === 1 ? 'record' : 'records'}<span className={styles.orderHint}> · Latest first</span></span>
         </div>
-      </section>
-
-      <section className={card + ' ' + styles.recordsCard}>
-        <h2 className="font-semibold">Daily work records</h2>
-        <div className={styles.tableScroll}>
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr>
-                {['Date', 'Status', 'Start', 'End / pause', 'Time', 'Note'].map((heading) => (
-                  <th className="p-2" key={heading}>{heading}</th>
-                ))}
-              </tr>
-            </thead>
+        <div className={styles.tableScroll} role="region" aria-label="Daily work records" tabIndex={0}>
+          <table className={styles.table}>
+            <thead><tr>{['Workday', 'Status', 'Start', 'End / pause', 'Tracked', 'Note'].map((heading) => <th scope="col" key={heading}>{heading}</th>)}</tr></thead>
             <tbody>
-              {task.updates.map((update) => (
-                <tr className="border-t border-[var(--panel-border)]" key={update.id}>
-                  <td className="p-2">{formatDateInDhaka(update.reportDate)}</td>
-                  <td className="p-2">{update.status === 'done' ? 'Completed (100%)' : update.status}</td>
-                  <td className="p-2">{fmt(update.actualStart)}</td>
-                  <td className="p-2">{fmt(update.actualEnd)}</td>
-                  <td className="p-2">{formatMinutes(update.trackedMinutes)}</td>
-                  <td className="min-w-48 whitespace-pre-wrap p-2">{update.note ?? 'No note'}</td>
+              {dailyRecords.map((update) => (
+                <tr key={update.id}>
+                  <td><time className={styles.workday} dateTime={update.reportDate.toISOString()}>{formatDateInDhaka(update.reportDate)}</time></td>
+                  <td><span className={styles.status} data-status={update.status}><span />{statusLabel(update.status)}</span></td>
+                  <td>{renderTime(update.actualStart, update.reportDate)}</td>
+                  <td>{renderTime(update.actualEnd, update.reportDate)}</td>
+                  <td><span className={styles.duration}>{formatDuration(update.trackedMinutes)}</span></td>
+                  <td className={styles.note}>{update.note || <span className={styles.muted}>No note</span>}</td>
                 </tr>
               ))}
+              {!task.updates.length && <tr><td colSpan={6}><div className={styles.emptyState}><Clock3 size={22} aria-hidden="true" /><p>No daily work records yet.</p></div></td></tr>}
             </tbody>
           </table>
         </div>
       </section>
 
-      <section className={card + ' ' + styles.historyCard}>
-        <h2 className="font-semibold">Completion and reopen history</h2>
-        <div className={styles.historyList}>
-        {task.activityEvents.map((event) => (
-          <article className="mt-3 border-l-2 border-indigo-400 py-1 pl-4" key={event.id}>
-            <p className="text-sm font-semibold">
-              {event.eventType === 'completed' ? 'Completed' : 'Reopened'} / Cycle {event.cycle}
-            </p>
-            <p className="mt-1 text-xs text-[var(--muted-foreground)]">
-              {fmt(event.createdAt)} / {event.actor?.name ?? 'System'} / {formatMinutes(event.trackedMinutes)}
-            </p>
-            <p className="mt-2 whitespace-pre-wrap text-sm">
-              {event.reason ?? event.note ?? 'No additional note'}
-            </p>
-          </article>
-        ))}
-        {!task.activityEvents.length ? (
-          <p className="mt-3 text-sm text-[var(--muted-foreground)]">
-            No recorded completion events. Older task evidence remains in daily records above.
-          </p>
-        ) : null}
-        </div>
-      </section>
+      <div className={styles.sideRail}>
+        <section className={card + ' ' + styles.historyCard} aria-labelledby="completion-history-title">
+          <div className={styles.sectionHeader}>
+            <div className={styles.sectionHeading}><span className={styles.icon}><History size={16} aria-hidden="true" /></span><h2 id="completion-history-title">Completion history</h2></div>
+            <span className={styles.count}>{task.activityEvents.length} {task.activityEvents.length === 1 ? 'event' : 'events'}<span className={styles.orderHint}> · Latest first</span></span>
+          </div>
+          <div className={styles.historyList} role="region" aria-label="Completion and reopen history" tabIndex={0}>
+            {completionEvents.map((event) => (
+              <article className={styles.cycleEvent} data-completed={event.eventType === 'completed'} key={event.id}>
+                <span className={styles.cycleIcon}>{event.eventType === 'completed' ? <CheckCircle2 size={15} aria-hidden="true" /> : <RotateCcw size={15} aria-hidden="true" />}</span>
+                <div className={styles.cycleContent}>
+                  <div className={styles.cycleTitle}><h3>{event.eventType === 'completed' ? 'Completed' : 'Reopened'}</h3><span>Cycle {event.cycle}</span></div>
+                  <time dateTime={event.createdAt.toISOString()}>{fmt(event.createdAt)}</time>
+                  <div className={styles.cycleMeta}><span>{event.actor?.name ?? 'System'}</span><span title="Tracked time at this event">{formatDuration(event.trackedMinutes)}</span></div>
+                  {(event.reason || event.note) && <p className={styles.cycleNote}>{event.reason || event.note}</p>}
+                </div>
+              </article>
+            ))}
+            {!task.activityEvents.length && <div className={styles.emptyState}><History size={22} aria-hidden="true" /><p>No completion events yet.</p><small>Earlier work is available in daily records.</small></div>}
+          </div>
+        </section>
+
+        <section className={card + ' ' + styles.checklistCard} data-empty={!checklist.length} aria-labelledby="checklist-title">
+          <div className={styles.sectionHeader}>
+            <div className={styles.sectionHeading}><span className={styles.icon}><ListChecks size={16} aria-hidden="true" /></span><h2 id="checklist-title">Checklist / subtasks</h2></div>
+            <span className={styles.count}>{checklist.length ? `${completedItems} / ${checklist.length}` : "No items"}</span>
+          </div>
+          {checklist.length > 0 && <div className={styles.cardBodyScroll} role="region" aria-label="Checklist items" tabIndex={0}>
+            {checklist.map((item) => (
+              <div className={styles.checklistItem} data-done={item.done} key={item.id}>
+                {item.done ? <CheckCircle2 size={16} aria-label="Completed" /> : <Circle size={16} aria-label="Open" />}<span>{item.title}</span>
+              </div>
+            ))}
+          </div>}
+        </section>
+      </div>
 
       <details className={card + ' ' + styles.activityLog} data-task-activity-log>
         <summary>
           <span className={styles.icon}><Activity aria-hidden="true" size={16} /></span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-semibold">Task activity log</span>
-            <span className="mt-0.5 block text-xs text-[var(--muted-foreground)]">
-              {activityEntries.length
-                ? activityEntries.length + ' recorded event' + (activityEntries.length === 1 ? '' : 's') + ' / Latest first'
-                : 'No activity recorded yet'}
-            </span>
-          </span>
+          <span className={styles.activityLabel}><strong>Task activity log</strong><span>{activityEntries.length ? activityEntries.length + ' recorded event' + (activityEntries.length === 1 ? '' : 's') + ' · Latest first' : 'No activity recorded yet'}</span></span>
           <ChevronDown aria-hidden="true" className={styles.chevron} size={18} />
         </summary>
-        {activityEntries.length ? (
+        {activityEntries.length > 0 && (
           <div className={styles.eventList}>
-            <p className="pb-1 pt-2 text-xs text-[var(--muted-foreground)]">
-              Readable work history is shown here. Internal IDs and system versions remain securely stored but hidden.
-            </p>
             {renderTimeline(activityEntries.slice(0, 5))}
-            {activityEntries.length > 5 ? (
-              <details className="border-t border-[var(--panel-border)] pt-3">
-                <summary className="cursor-pointer text-sm font-medium text-indigo-600">
-                  View {activityEntries.length - 5} older event{activityEntries.length - 5 === 1 ? '' : 's'}
-                </summary>
-                <div className="mt-2">{renderTimeline(activityEntries.slice(5))}</div>
-              </details>
-            ) : null}
+            {activityEntries.length > 5 && <details className={styles.olderEvents}><summary>View {activityEntries.length - 5} older event{activityEntries.length - 5 === 1 ? '' : 's'}</summary><div>{renderTimeline(activityEntries.slice(5))}</div></details>}
           </div>
-        ) : null}
+        )}
       </details>
     </div>
   );

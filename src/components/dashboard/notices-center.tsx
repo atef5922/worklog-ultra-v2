@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { NOTICES_READ_EVENT } from "@/lib/dashboard-live-events";
+import styles from "./notices-center.module.css";
 
 type Department = {
   id: string;
@@ -152,50 +153,50 @@ export function NoticesCenter({
       ) : null}
 
       <div
-        className="dashboard-accent accent-amber rounded-[1.25rem] border border-[var(--panel-border)] bg-[var(--panel)] p-3 shadow-[var(--shadow)] sm:p-3.5"
+        className={`${styles.activePanel} rounded-[1.25rem] p-3 sm:p-3.5`}
         data-dashboard-panel
       >
         <PanelHeader
           action={
-            <span className="font-mono text-[0.68rem] font-semibold tabular-nums text-[var(--muted-foreground)]">
+            <span className={styles.activeCount}>
               {notices.length} active
             </span>
           }
           icon={BellRing}
           title="Active Notices"
-          tone="bg-amber-500/10 text-amber-500"
+          tone={styles.icon}
         />
         <div className="mt-2.5 space-y-2">
           {notices.length ? (
             (notices ?? []).map((notice, index) => (
               <div
                 key={notice.id}
-                className="rounded-xl border border-[var(--panel-border)] bg-[var(--panel-muted)] p-3 transition-colors hover:border-amber-500/30"
+                className={`${styles.notice} rounded-xl p-3`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-2.5">
                   <div className="flex min-w-0 items-start gap-2.5">
-                    <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-amber-500/10 font-mono text-[0.625rem] font-bold tabular-nums text-amber-600">
+                    <span className={`${styles.number} mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md font-mono text-[0.625rem] font-bold tabular-nums`}>
                       {String(index + 1).padStart(2, "0")}
                     </span>
                     <div className="min-w-0">
-                      <p className="break-words text-[0.88rem] font-bold leading-snug text-[var(--foreground)]">{notice.title}</p>
-                      <p className="mt-0.5 truncate text-[0.65rem] font-bold uppercase tracking-[0.16em] text-amber-600">
+                      <p className={`${styles.title} break-words text-[0.88rem] font-bold leading-snug`}>{notice.title}</p>
+                      <p className={`${styles.metadata} mt-0.5 truncate text-[0.65rem] font-semibold uppercase tracking-[0.1em]`}>
                         {notice.departmentName} · by {notice.authorName}
                       </p>
                     </div>
                   </div>
-                  <span className="shrink-0 font-mono text-[0.68rem] font-semibold tabular-nums text-[var(--muted-foreground)]">
+                  <span className={`${styles.date} shrink-0 font-mono text-[0.68rem] font-medium tabular-nums`}>
                     {notice.publishedAt
                       ? formatDateTimeInDhaka(notice.publishedAt)
                       : "Just now"}
                   </span>
                 </div>
-                <p className="mt-2 whitespace-pre-line break-words text-[0.8rem] leading-6 text-[var(--foreground)]">{notice.body}</p>
+                <p className={`${styles.body} mt-2 whitespace-pre-line break-words text-[0.8rem] leading-6`}>{notice.body}</p>
               </div>
             ))
           ) : (
-            <div className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-[var(--panel-border)] bg-[var(--panel-muted)] px-3 py-6 text-center">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/10 text-amber-500">
+            <div className={`${styles.empty} flex flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed px-3 py-6 text-center`}>
+              <span className={`${styles.icon} inline-flex h-8 w-8 items-center justify-center rounded-full`}>
                 <BellRing className="h-4 w-4" />
               </span>
               <p className="text-[0.8rem] font-medium text-[var(--muted-foreground)]">No active notice right now.</p>

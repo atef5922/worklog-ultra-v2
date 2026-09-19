@@ -148,6 +148,15 @@ export function buildReportSummary(tasks: TaskReportLike[]) {
     });
   });
 
+  items.sort(
+    (left, right) =>
+      right.date.localeCompare(left.date) ||
+      getSortableTimestamp(right.actualStart) - getSortableTimestamp(left.actualStart) ||
+      getSortableTimestamp(right.actualEnd) - getSortableTimestamp(left.actualEnd) ||
+      left.title.localeCompare(right.title) ||
+      left.id.localeCompare(right.id),
+  );
+
   const totalTrackedMinutes = items.reduce((sum, item) => sum + item.trackedMinutes, 0);
   const completedTasks = items.filter((item) => item.status === "done").length;
   const inProgressTasks = items.filter((item) => item.status === "in_progress").length;
