@@ -884,9 +884,8 @@ html[data-theme="dark"] .dashboard-workplan-table-scroll .task-btn-primary:hover
  *
  * Every rule keys off `data-sidebar-collapsed` on <html> rather than off React
  * state, and the labels are hidden rather than unmounted. That keeps the markup
- * the server sends identical to the markup the client hydrates, so restoring the
- * stored preference cannot produce a hydration mismatch. The mobile drawer is
- * untouched: these selectors are all scoped to .dashboard-sidebar.
+ * the server sends identical to the markup the client hydrates. The mobile
+ * drawer is untouched: these selectors are all scoped to .dashboard-sidebar.
  */
 html[data-sidebar-collapsed="true"] {
   --sidebar-width: var(--sidebar-width-collapsed);
@@ -904,8 +903,8 @@ html[data-sidebar-peek="true"] {
   opacity: 1;
   white-space: nowrap;
   transition:
-    max-width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.2s ease 0.07s,
+    max-width 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.22s ease 0.06s,
     visibility 0s linear;
 }
 
@@ -913,8 +912,10 @@ html[data-sidebar-peek="true"] {
   padding-inline: 0.5rem;
   column-gap: 0.5rem;
   transition:
-    background-color 0.18s ease,
-    color 0.18s ease;
+    background-color 0.22s ease,
+    color 0.22s ease,
+    box-shadow 0.24s ease,
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 html[data-sidebar-collapsed="true"]:not([data-sidebar-peek="true"]) .dashboard-sidebar [data-sidebar-label] {
@@ -922,9 +923,9 @@ html[data-sidebar-collapsed="true"]:not([data-sidebar-peek="true"]) .dashboard-s
   opacity: 0;
   visibility: hidden;
   transition:
-    max-width 0.28s cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 0.16s ease,
-    visibility 0s linear 0.28s;
+    max-width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.18s ease,
+    visibility 0s linear 0.26s;
 }
 
 /* The unread dot has no end-of-row left to sit at, so it rides the icon. */
@@ -937,8 +938,8 @@ html[data-sidebar-collapsed="true"]:not([data-sidebar-peek="true"]) .dashboard-s
 
 .dashboard-sidebar [data-sidebar-brand] {
   transition:
-    padding-left 0.34s cubic-bezier(0.4, 0, 0.2, 1),
-    padding-right 0.34s cubic-bezier(0.4, 0, 0.2, 1);
+    padding-left 0.42s cubic-bezier(0.22, 1, 0.36, 1),
+    padding-right 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 html[data-sidebar-collapsed="true"]:not([data-sidebar-peek="true"]) .dashboard-sidebar [data-sidebar-brand] {
@@ -948,13 +949,13 @@ html[data-sidebar-collapsed="true"]:not([data-sidebar-peek="true"]) .dashboard-s
 }
 
 .dashboard-sidebar-shell {
-  transition: width 0.34s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.42s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: width;
 }
 
 .dashboard-sidebar {
   transition:
-    width 0.34s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.42s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.28s ease;
   will-change: width;
 }
@@ -996,7 +997,7 @@ html[data-sidebar-peek="true"] .dashboard-sidebar {
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
   transform: translate(-50%, -50%);
   transition:
-    left 0.34s cubic-bezier(0.4, 0, 0.2, 1),
+    left 0.42s cubic-bezier(0.22, 1, 0.36, 1),
     background 0.2s ease,
     border-color 0.2s ease,
     color 0.2s ease,
@@ -1023,24 +1024,31 @@ html[data-sidebar-peek="true"] .dashboard-sidebar {
   outline-offset: 2px;
 }
 
+.dashboard-sidebar [data-sidebar-toggle-icon] {
+  position: absolute;
+  transition:
+    opacity 0.2s ease,
+    transform 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dashboard-sidebar [data-sidebar-toggle-icon="collapse"] {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
+}
+
 .dashboard-sidebar [data-sidebar-toggle-icon="expand"] {
-  display: none;
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.78);
 }
 
-html[data-sidebar-collapsed="true"] .dashboard-sidebar [data-sidebar-toggle-icon="expand"] {
-  display: block;
+html[data-sidebar-collapsed="true"]:not([data-sidebar-peek="true"]) .dashboard-sidebar [data-sidebar-toggle-icon="collapse"] {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.78);
 }
 
-html[data-sidebar-collapsed="true"] .dashboard-sidebar [data-sidebar-toggle-icon="collapse"] {
-  display: none;
-}
-
-html[data-sidebar-peek="true"] .dashboard-sidebar [data-sidebar-toggle-icon="expand"] {
-  display: none;
-}
-
-html[data-sidebar-peek="true"] .dashboard-sidebar [data-sidebar-toggle-icon="collapse"] {
-  display: block;
+html[data-sidebar-collapsed="true"]:not([data-sidebar-peek="true"]) .dashboard-sidebar [data-sidebar-toggle-icon="expand"] {
+  opacity: 1;
+  transform: rotate(0deg) scale(1);
 }
 
 @media (prefers-reduced-motion: reduce) {

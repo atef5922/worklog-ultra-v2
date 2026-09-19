@@ -243,7 +243,7 @@
 .livePanel .liveTable td{height:33px;padding:3px 6px;overflow:hidden;white-space:normal;vertical-align:middle;border-bottom:1px solid var(--panel-border)}
 .livePanel .liveTable :is(th,td):first-child{border-right:1px solid var(--panel-border)}
 .livePanel .liveTable td:last-child{padding-left:5px;padding-right:3px}
-.livePanel .liveTable tbody tr:last-child td{border-bottom:0}
+.livePanel .liveTable tbody tr:last-child td{border-bottom:1px solid var(--panel-border)}
 .livePanel .liveTable tbody tr:hover{background:var(--panel-muted)}
 .liveEmployee{display:block;min-width:0}
 .livePanel .avatar{width:22px;height:22px;font-size:8px}
@@ -374,3 +374,25 @@
 .tasks .rowActions button>span{right:0;top:-6px}
 .planAction{display:grid;width:26px;height:26px;flex:none;place-items:center;border:1px solid var(--panel-border);border-radius:7px;background:var(--panel);color:#365fcf;transition:background .16s,border-color .16s}
 .planAction:hover{border-color:#a9bdec;background:var(--panel-muted)}
+
+/* Filter focus reuses the control border instead of drawing a second ring. */
+.dashboard .filters :is(input,select):focus,
+.dashboard .filters :is(input,select):focus-visible,
+.dashboard .actions select:focus,
+.dashboard .actions select:focus-visible{
+ outline:none;
+ outline-offset:0;
+ border-color:var(--ring);
+ box-shadow:none;
+}
+
+/* Sparse task results keep normal row height while the panel retains its place. */
+@media(min-width:1100px) and (min-height:560px){
+ .dashboard .taskPanel .scrollTable .tasks{
+  height:auto;
+  min-height:0;
+ }
+ .dashboard .taskPanel .scrollTable .tasks tbody tr:last-child td{
+  border-bottom:1px solid var(--panel-border);
+ }
+}

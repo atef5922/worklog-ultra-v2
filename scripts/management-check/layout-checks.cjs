@@ -107,8 +107,9 @@ module.exports=async function layoutChecks(browser,base,out,errors,fixture){
     const canScroll=el.scrollHeight>el.clientHeight+1;
     el.scrollTop=el.scrollHeight;
     const box=el.getBoundingClientRect(),header=el.querySelector('th').getBoundingClientRect();
-    return {canScroll,top:el.scrollTop,headerTop:header.top,boxTop:box.top};
+    return {canScroll,top:el.scrollTop,headerTop:header.top,boxTop:box.top,bottomBorder:getComputedStyle(el.querySelector('tbody tr:last-child td')).borderBottomWidth};
    });
+   assert.equal(liveScroll.bottomBorder,'1px','Live team final row keeps its bottom divider');
    if(width>=1100&&height<=600)assert(liveScroll.canScroll&&liveScroll.top>0,'Live team table scrolls on compact desktop screens');
    if(liveScroll.canScroll)assert(Math.abs(liveScroll.headerTop-liveScroll.boxTop)<=2,'Live team header stays visible while scrolling');
    await fit();

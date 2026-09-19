@@ -3,11 +3,11 @@ import { getSidebarLayout } from "./sidebar-layout";
 
 describe("scroll-free sidebar layout", () => {
   it("fits every Super Admin item in a typical laptop sidebar", () => {
-    const result = getSidebarLayout({itemCount:13,availableHeight:480});
-    expect(result.pageSize).toBe(13);
+    const result = getSidebarLayout({itemCount:14,availableHeight:480});
+    expect(result.pageSize).toBe(14);
     expect(result.pageCount).toBe(1);
     expect(result.rowHeight).toBeGreaterThanOrEqual(32);
-    expect(result.rowHeight * 13 + 12 * 2).toBeLessThanOrEqual(480);
+    expect(result.rowHeight * 14 + 13 * 2).toBeLessThanOrEqual(480);
   });
   it("does not stretch employee menus into oversized rows", () => {
     expect(getSidebarLayout({itemCount:6,availableHeight:700}).rowHeight).toBe(40);
@@ -22,12 +22,12 @@ describe("scroll-free sidebar layout", () => {
     expect(visited).toEqual(Array.from({length:13},(_,i)=>i));
   });
   it("keeps 44px touch targets on mobile", () => {
-    const result = getSidebarLayout({itemCount:13,availableHeight:430,minimumRowHeight:44,preferredRowHeight:44});
+    const result = getSidebarLayout({itemCount:14,availableHeight:430,minimumRowHeight:44,preferredRowHeight:44});
     expect(result.pageCount).toBe(2);
     expect(result.rowHeight).toBe(44);
   });
   it("handles the first render and an empty menu", () => {
-    expect(getSidebarLayout({itemCount:13,availableHeight:0}).pageSize).toBe(13);
+    expect(getSidebarLayout({itemCount:14,availableHeight:0}).pageSize).toBe(14);
     expect(getSidebarLayout({itemCount:0,availableHeight:200}).pageCount).toBe(1);
   });
   it.each([160,240,320,400,480,600,900])("never overflows %ipx of measured space", height => {

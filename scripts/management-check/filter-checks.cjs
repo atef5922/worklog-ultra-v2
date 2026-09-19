@@ -28,6 +28,20 @@ module.exports=async function checkFilters(browser,base,fixture){
   const kpi=page.locator('section').filter({has:page.getByRole('heading',{name:'Total employees',exact:true})});
   assert((await kpi.boundingBox()).height<=76,'KPI cards must stay compact');
   const taskArea=page.getByRole('region',{name:'Task table',exact:true});
+  const employeeField=page.getByLabel('Employee',{exact:true});
+  const idleFieldStyle=await employeeField.evaluate(el=>({borderWidth:getComputedStyle(el).borderTopWidth,borderColor:getComputedStyle(el).borderTopColor}));
+  await employeeField.focus();
+  const focusedFieldStyle=await employeeField.evaluate(el=>({borderWidth:getComputedStyle(el).borderTopWidth,borderColor:getComputedStyle(el).borderTopColor,outlineStyle:getComputedStyle(el).outlineStyle,outlineWidth:getComputedStyle(el).outlineWidth}));
+  assert.equal(focusedFieldStyle.borderWidth,idleFieldStyle.borderWidth,'Filter focus must reuse the existing border width');
+  assert.notEqual(focusedFieldStyle.borderColor,idleFieldStyle.borderColor,'Filter focus must color the existing border');
+  assert(focusedFieldStyle.outlineStyle==='none'||focusedFieldStyle.outlineWidth==='0px','Filter focus must not add a second outline');
+  const sortField=page.getByLabel('Sort tasks',{exact:true});
+  const idleSortStyle=await sortField.evaluate(el=>({borderWidth:getComputedStyle(el).borderTopWidth,borderColor:getComputedStyle(el).borderTopColor}));
+  await sortField.focus();
+  const focusedSortStyle=await sortField.evaluate(el=>({borderWidth:getComputedStyle(el).borderTopWidth,borderColor:getComputedStyle(el).borderTopColor,outlineStyle:getComputedStyle(el).outlineStyle,outlineWidth:getComputedStyle(el).outlineWidth}));
+  assert.equal(focusedSortStyle.borderWidth,idleSortStyle.borderWidth,'Sort focus must reuse the existing border width');
+  assert.notEqual(focusedSortStyle.borderColor,idleSortStyle.borderColor,'Sort focus must color the existing border');
+  assert(focusedSortStyle.outlineStyle==='none'||focusedSortStyle.outlineWidth==='0px','Sort focus must not add a second outline');
   await taskArea.evaluate(el=>el.scrollTop=el.scrollHeight);
   async function apply(label,name,value,type='select'){
    const field=page.getByLabel(label,{exact:true});
@@ -48,6 +62,16 @@ module.exports=async function checkFilters(browser,base,fixture){
   assert.equal(requests.length-beforeSearch,1,'Search must be debounced');
   assert(await page.getByLabel('Search',{exact:true}).evaluate(el=>el===document.activeElement),'Typing keeps focus');
   assert.equal(await page.locator('table').first().locator('tbody tr').count(),1);
+  const sparseTaskMetrics=await taskArea.evaluate(el=>{
+   const table=el.querySelector('table'),head=table.querySelector('thead'),row=table.querySelector('tbody tr');
+   const lastCell=row.querySelector('td:last-child');
+   return {areaHeight:el.getBoundingClientRect().height,tableHeight:table.getBoundingClientRect().height,headHeight:head.getBoundingClientRect().height,rowHeight:row.getBoundingClientRect().height,backgroundImage:getComputedStyle(el).backgroundImage,lastBorder:getComputedStyle(lastCell).borderBottomWidth};
+  });
+  assert(sparseTaskMetrics.rowHeight<=40,'A single task row must remain compact: '+JSON.stringify(sparseTaskMetrics));
+  assert(sparseTaskMetrics.tableHeight<=sparseTaskMetrics.headHeight+sparseTaskMetrics.rowHeight+3,'A sparse task table must not stretch its only row: '+JSON.stringify(sparseTaskMetrics));
+  assert(sparseTaskMetrics.areaHeight>sparseTaskMetrics.tableHeight+20,'The panel should keep clean space below sparse task results: '+JSON.stringify(sparseTaskMetrics));
+  assert.equal(sparseTaskMetrics.backgroundImage,'none','Sparse task space must stay clean without full-height guide lines');
+  assert.equal(sparseTaskMetrics.lastBorder,'1px','The final task row must keep its bottom divider');
   await page.locator('summary').filter({hasText:'Export'}).click();
   const exportUrl=new URL(await page.getByRole('link',{name:'PDF',exact:true}).getAttribute('href'),base);
   for(const [key,value] of Object.entries(requests.at(-1)))assert.equal(exportUrl.searchParams.get(key),value);

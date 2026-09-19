@@ -64,21 +64,26 @@ async function run() {
   }
   try {
     for(const [width,height] of [[1365,636],[1280,560],[1920,900],[1365,320]]) {
-      const {page,context}=await testPage(width,height);
+      const {page,context}=await testPage(width,height,'pathname=/management');
+      assert.equal(await page.locator('html').getAttribute('data-sidebar-collapsed'),'true','Every desktop load must start collapsed');
+      assert.equal(await page.locator('.dashboard-sidebar [data-sidebar-subitem]').count(),0,'Management submenu must start collapsed');
+      await page.locator('.dashboard-sidebar [data-sidebar-toggle]').click();
+      await page.waitForTimeout(500);
+      await page.getByRole('button',{name:'Management'}).click();
+      await page.waitForTimeout(420);
       const data=await checkFit(page,'.dashboard-sidebar');
-      if(height>=560) assert.equal(data.rows.length,13,'Every Super Admin menu should fit without pagination');
+      if(data.rows.length<14) {
+        const seen=new Set(data.rows.map(row=>row.label));
+        const more=page.locator('.dashboard-sidebar .sidebar-navigation-pager button');
+        for(let i=0;i<6&&seen.size<14;i++) {await more.click();await page.waitForTimeout(420);const next=await checkFit(page,'.dashboard-sidebar');next.rows.forEach(row=>seen.add(row.label));}
+        assert.equal(seen.size,14,'Every expanded Super Admin menu must remain reachable');
+      }
       if(width===1365&&height===636) {
         const expandedRail=await page.locator('.dashboard-sidebar').boundingBox();
         assert(expandedRail.width<=205&&expandedRail.width>=190,`Expanded sidebar should remain compact: ${expandedRail.width}px`);
         const clipped=await page.locator('.dashboard-sidebar nav [data-sidebar-label]').evaluateAll(labels=>labels.filter(label=>label.scrollWidth>label.clientWidth+1).map(label=>label.textContent));
         assert.deepEqual(clipped,[],'Expanded navigation labels should fit');
         await page.screenshot({path:path.join(artifactDir,'desktop-expanded.png')});
-      }
-      if(height===320) {
-        const seen=new Set(data.rows.map(row=>row.label));
-        const more=page.locator('.dashboard-sidebar .sidebar-navigation-pager button');
-        for(let i=0;i<5&&seen.size<13;i++) {await more.click();const next=await checkFit(page,'.dashboard-sidebar');next.rows.forEach(row=>seen.add(row.label));}
-        assert.equal(seen.size,13,'Every short-screen menu must remain reachable');
       }
       console.log('PASS desktop fit',width,height,'visible menu rows',data.rows.length);
       await context.close();
@@ -87,6 +92,9 @@ async function run() {
       const {page,context}=await testPage(1365,636,'',false);
       const sidebar=page.locator('.dashboard-sidebar');
       const toggle=sidebar.locator('[data-sidebar-toggle]');
+      const dashboardIcon=await sidebar.locator('a[title="Dashboard"] svg').first().boundingBox();
+      const managementIcon=await sidebar.getByRole('button',{name:'Management'}).locator('svg').first().boundingBox();
+      assert(Math.abs((dashboardIcon.x+dashboardIcon.width/2)-(managementIcon.x+managementIcon.width/2))<1,'Collapsed Management icon must share the main icon center line');
       await toggle.hover();await page.waitForTimeout(400);
       assert.equal(await page.locator('html').getAttribute('data-sidebar-peek'),'false','Toggle hover must not expand');
       const iconBefore=await sidebar.locator('nav svg').first().boundingBox();
@@ -95,14 +103,45 @@ async function run() {
       await page.waitForTimeout(450);
       const iconExpanded=await sidebar.locator('nav svg').first().boundingBox();
       assert(Math.abs(iconBefore.x-iconExpanded.x)<1,'Icon lane must stay steady');
+      const inactiveManagementStyle=await sidebar.getByRole('button',{name:'Management'}).evaluate(element=>({
+        backgroundColor:getComputedStyle(element).backgroundColor,
+        backgroundImage:getComputedStyle(element).backgroundImage,
+      }));
+      assert.equal(inactiveManagementStyle.backgroundColor,'rgba(0, 0, 0, 0)','Inactive Management must remain transparent');
+      assert.equal(inactiveManagementStyle.backgroundImage,'none','Inactive Management must not retain an active fill');
       const rail=await sidebar.boundingBox();const main=await page.locator('main').boundingBox();
       assert(Math.abs(rail.width-main.x)<1,'Content must fit the expanded sidebar');
+      await sidebar.getByRole('button',{name:'Management'}).click();
+      await page.waitForTimeout(420);
+      assert((await sidebar.locator('[data-sidebar-subitem]').count())>0,'Expanded Management must show submenu rows');
       await page.mouse.move(700,250);await page.waitForTimeout(650);
       assert.equal(await page.locator('html').getAttribute('data-sidebar-peek'),'false');
+      assert.equal(await sidebar.locator('[data-sidebar-subitem]').count(),0,'Collapsed sidebar must hide submenu rows');
+      await sidebar.locator('nav a').first().hover();
+      await page.waitForFunction(()=>document.documentElement.dataset.sidebarPeek==='true');
+      await page.waitForTimeout(250);
+      assert.equal(await sidebar.locator('[data-sidebar-subitem]').count(),0,'Re-expanded sidebar must keep Management collapsed');
+      await page.mouse.move(700,250);await page.waitForTimeout(650);
       await toggle.click();await page.mouse.move(700,250);await page.waitForTimeout(450);
       assert.equal(await page.locator('html').getAttribute('data-sidebar-pinned'),'true');
-      await toggle.click();await page.mouse.move(700,250);await page.waitForTimeout(450);
+      assert.equal(await sidebar.locator('[data-sidebar-subitem]').count(),0,'Pinned expansion must keep Management collapsed');
+      await sidebar.getByRole('button',{name:'Management'}).click();await page.waitForTimeout(420);
+      assert((await sidebar.locator('[data-sidebar-subitem]').count())>0,'Management must still expand on an explicit click');
+      const reportLink=sidebar.locator('a[href="/dashboard/report"]');
+      await reportLink.evaluate(link=>link.addEventListener('click',event=>event.preventDefault(),{once:true}));
+      await reportLink.click();await page.waitForTimeout(420);
+      assert.equal(await sidebar.locator('[data-sidebar-subitem]').count(),0,'Another main-menu click must collapse Management');
+      await sidebar.getByRole('button',{name:'Management'}).click();await page.waitForTimeout(420);
+      assert((await sidebar.locator('[data-sidebar-subitem]').count())>0,'Management must reopen after navigation reset');
+      await page.evaluate(()=>window.dispatchEvent(new Event('blur')));await page.mouse.move(700,250);await page.waitForTimeout(450);
+      assert.equal(await page.locator('html').getAttribute('data-sidebar-pinned'),'false','Window blur must clear the pinned expansion');
       assert.equal(await page.locator('html').getAttribute('data-sidebar-collapsed'),'true');
+      assert.equal(await sidebar.locator('[data-sidebar-subitem]').count(),0,'Window blur must collapse Management submenu rows');
+      await sidebar.locator('nav a').first().hover();
+      await page.waitForFunction(()=>document.documentElement.dataset.sidebarPeek==='true');
+      await page.waitForTimeout(300);
+      assert.equal(await sidebar.locator('[data-sidebar-subitem]').count(),0,'Hover re-expansion after pin collapse must keep Management collapsed');
+      await page.mouse.move(700,250);await page.waitForTimeout(650);
       await page.screenshot({path:path.join(artifactDir,'desktop-collapsed.png')});
       console.log('PASS hover, collapse, stable icons, toggle exclusion, pin and content fit');
       await context.close();
@@ -114,22 +153,29 @@ async function run() {
       console.log('PASS role-aware menu',role);await context.close();
     }
     for (const role of ['employee','team_head','admin','moderator']) {
-      const {page,context}=await testPage(1365,636,`role=${role}&management=true&attendance=true`);
+      const {page,context}=await testPage(1365,636,`role=${role}&management=true&attendance=true&pathname=/management/attendance`);
+      await page.locator('.dashboard-sidebar [data-sidebar-toggle]').click();
+      await page.waitForTimeout(500);
+      const managementButton=page.getByRole('button',{name:'Management'});
+      if(await managementButton.count()) {await managementButton.click();await page.waitForTimeout(420);}
       const attendance=page.locator('.dashboard-sidebar nav a[href="/management/attendance"]');
       assert.equal(await attendance.count(),role==='employee'?0:1,role+' attendance access');
       await context.close();
     }
     for(const [width,height] of [[390,844],[375,640],[844,390]]) {
-      const {page,context}=await testPage(width,height);
+      const {page,context}=await testPage(width,height,'pathname=/management');
       await page.getByRole('button',{name:'Open navigation menu'}).click();
       await page.waitForTimeout(300);
       const selector='.sidebar-content[data-sidebar-mobile="true"]';
+      assert.equal(await page.locator(selector+' [data-sidebar-subitem]').count(),0,'Mobile Management submenu must start collapsed');
+      await page.locator(selector).getByRole('button',{name:'Management'}).click();
+      await page.waitForTimeout(420);
       const data=await checkFit(page,selector);
       assert(data.rows.every(row=>row.height>=43),'Mobile touch targets must not shrink');
       const seen=new Set(data.rows.map(row=>row.label));
       const more=page.locator(selector+' .sidebar-navigation-pager button');
-      for(let i=0;i<8&&seen.size<13;i++) {await more.click();const next=await checkFit(page,selector);next.rows.forEach(row=>seen.add(row.label));}
-      assert.equal(seen.size,13,'Every mobile menu should be reachable');
+      for(let i=0;i<8&&seen.size<14;i++) {await more.click();await page.waitForTimeout(420);const next=await checkFit(page,selector);next.rows.forEach(row=>seen.add(row.label));}
+      assert.equal(seen.size,14,'Every expanded mobile menu should be reachable');
       if(width===375) await page.screenshot({path:path.join(artifactDir,'mobile.png')});
       console.log('PASS mobile fit and menu reachability',width,height);await context.close();
     }

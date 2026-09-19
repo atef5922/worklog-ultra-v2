@@ -46,13 +46,18 @@ export function ManagementDashboard({initial,filters}:{initial:ManagementDashboa
  useEffect(()=>{
   const area=liveRowsRef.current,table=area?.querySelector('table');
   if(!area||!table)return;
-  const measure=()=>{
+  let measureTimer:number|undefined;
+  const commitMeasurement=()=>{
    const visible=table.getBoundingClientRect().height-area.clientHeight>8;
    setLiveScrollbarVisible(previous=>previous===visible?previous:visible);
   };
-  const observer=new ResizeObserver(measure);
-  observer.observe(area);observer.observe(table);measure();
-  return()=>observer.disconnect();
+  const scheduleMeasurement=()=>{
+   window.clearTimeout(measureTimer);
+   measureTimer=window.setTimeout(commitMeasurement,140);
+  };
+  const observer=new ResizeObserver(scheduleMeasurement);
+  observer.observe(area);observer.observe(table);commitMeasurement();
+  return()=>{observer.disconnect();window.clearTimeout(measureTimer);};
  },[]);
 
  const [selection,setSelection]=useState(()=>({values:{userId:filters.userId??'',departmentId:filters.departmentId??'',from:initial.from,to:initial.to,taskStatus:filters.taskStatus??'',priority:filters.priority??'',q:filters.q??'',attendancePeriod:filters.attendancePeriod??'today'},query:filterQuery({...filters,from:initial.from,to:initial.to}),revision:0,delay:0}));
